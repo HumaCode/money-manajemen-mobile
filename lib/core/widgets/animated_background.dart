@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import '../theme/app_theme.dart';
+import 'package:money_manajemen/app/theme/app_theme.dart';
 
 /// Floating glow blobs + subtle dot grid background.
 /// Used behind splash / login for a modern, alive feel.
