@@ -3,6 +3,7 @@ import 'package:money_manajemen/app/theme/app_theme.dart';
 import 'package:money_manajemen/core/widgets/animated_background.dart';
 import 'package:money_manajemen/core/widgets/app_text_field.dart';
 import 'package:money_manajemen/core/widgets/primary_button.dart';
+import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -275,7 +276,18 @@ class _LoginScreenState extends State<LoginScreen>
                             ),
                             GestureDetector(
                               onTap: () {
-                                // TODO: navigate to RegisterScreen
+                                Navigator.of(context).push(
+                                  PageRouteBuilder(
+                                    transitionDuration: const Duration(
+                                      milliseconds: 450,
+                                    ),
+                                    pageBuilder: (_, animation, __) =>
+                                        FadeTransition(
+                                          opacity: animation,
+                                          child: const RegisterScreen(),
+                                        ),
+                                  ),
+                                );
                               },
                               child: const Text(
                                 'Daftar',
