@@ -1,47 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:money_manajemen/app/constants/R/app_color.dart';
 
-/// MoneyFlow Design System
-/// Consistent with web version: dark luxury theme
-class AppColors {
-  AppColors._();
+typedef AppColors = AppColor;
 
-  // Backgrounds
-  static const Color bgDeep = Color(0xFF0A0E1A);
-  static const Color bgCard = Color(0xFF111827);
-  static const Color bgCardHover = Color(0xFF1A2332);
-  static const Color bgInput = Color(0x0AFFFFFF); // rgba(255,255,255,0.04)
 
-  // Borders
-  static const Color cardBorder = Color(0x0FFFFFFF); // rgba(255,255,255,0.06)
-
-  // Text
-  static const Color textPrimary = Color(0xFFF0F2F5);
-  static const Color textSecondary = Color(0xFF6B7280);
-
-  // Accent (brand)
-  static const Color accent = Color(0xFF7DD3A8);
-  static const Color accentGlow = Color(0x4D7DD3A8); // rgba(125,211,168,0.3)
-
-  // Status
-  static const Color success = Color(0xFF10B981);
-  static const Color error = Color(0xFFF87171);
-  static const Color warning = Color(0xFFF59E0B);
-  static const Color info = Color(0xFF3B82F6);
-  static const Color purple = Color(0xFF8B5CF6);
-
-  // Gradients
-  static const LinearGradient bgGradient = LinearGradient(
-    begin: Alignment.topCenter,
-    end: Alignment.bottomCenter,
-    colors: [bgDeep, Color(0xFF0D1220), bgCard],
-  );
-
-  static const LinearGradient accentGradient = LinearGradient(
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-    colors: [Color(0xFF7DD3A8), Color(0xFF4FB88A)],
-  );
-}
 
 class AppRadius {
   AppRadius._();
