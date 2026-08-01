@@ -3,6 +3,7 @@ import 'package:money_manajemen/app/theme/app_theme.dart';
 import 'package:money_manajemen/core/widgets/app_bottom_nav.dart';
 import 'package:money_manajemen/core/utils/formatters.dart';
 import 'package:money_manajemen/features/analytics/presentation/pages/analytics_screen.dart';
+import 'package:money_manajemen/features/profile/presentation/pages/profile_screen.dart';
 import '../widgets/transaction_tile.dart';
 import '../widgets/add_transaction_sheet.dart';
 import '../models/transaction_model.dart';
@@ -193,6 +194,16 @@ class _TransactionsScreenState extends State<TransactionsScreen>
                 pageBuilder: (_, animation, __) => FadeTransition(
                   opacity: animation,
                   child: const AnalyticsScreen(),
+                ),
+              ),
+            );
+          } else if (i == 3) {
+            Navigator.of(context).pushReplacement(
+              PageRouteBuilder(
+                transitionDuration: const Duration(milliseconds: 300),
+                pageBuilder: (_, animation, __) => FadeTransition(
+                  opacity: animation,
+                  child: const ProfileScreen(),
                 ),
               ),
             );

@@ -7,6 +7,7 @@ import '../models/category_spend_model.dart';
 import 'package:money_manajemen/core/utils/formatters.dart';
 import 'package:money_manajemen/features/dashboard/presentation/pages/dashboard_screen.dart';
 import 'package:money_manajemen/features/transactions/presentation/pages/transactions_screen.dart';
+import 'package:money_manajemen/features/profile/presentation/pages/profile_screen.dart';
 
 class AnalyticsScreen extends StatefulWidget {
   const AnalyticsScreen({super.key});
@@ -111,10 +112,13 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
               MaterialPageRoute(builder: (_) => const TransactionsScreen()),
             );
           } else if (i == 3) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Halaman Profil — coming next'),
-                backgroundColor: AppColors.bgCardHover,
+            Navigator.of(context).pushReplacement(
+              PageRouteBuilder(
+                transitionDuration: const Duration(milliseconds: 300),
+                pageBuilder: (_, animation, __) => FadeTransition(
+                  opacity: animation,
+                  child: const ProfileScreen(),
+                ),
               ),
             );
           }

@@ -3,6 +3,7 @@ import 'package:money_manajemen/app/theme/app_theme.dart';
 import 'package:money_manajemen/core/widgets/app_bottom_nav.dart';
 import 'package:money_manajemen/features/transactions/presentation/pages/transactions_screen.dart';
 import 'package:money_manajemen/features/analytics/presentation/pages/analytics_screen.dart';
+import 'package:money_manajemen/features/profile/presentation/pages/profile_screen.dart';
 import 'package:money_manajemen/features/transactions/presentation/widgets/add_transaction_sheet.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -126,6 +127,16 @@ class _DashboardScreenState extends State<DashboardScreen>
                 pageBuilder: (_, animation, __) => FadeTransition(
                   opacity: animation,
                   child: const AnalyticsScreen(),
+                ),
+              ),
+            ).then((_) => setState(() => _navIndex = 0));
+          } else if (i == 3) {
+            Navigator.of(context).push(
+              PageRouteBuilder(
+                transitionDuration: const Duration(milliseconds: 300),
+                pageBuilder: (_, animation, __) => FadeTransition(
+                  opacity: animation,
+                  child: const ProfileScreen(),
                 ),
               ),
             ).then((_) => setState(() => _navIndex = 0));
