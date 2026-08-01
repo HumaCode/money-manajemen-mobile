@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:money_manajemen/app/theme/app_theme.dart';
 import 'package:money_manajemen/core/widgets/app_bottom_nav.dart';
+import 'package:money_manajemen/features/transactions/presentation/pages/transactions_screen.dart';
+import 'package:money_manajemen/features/transactions/presentation/widgets/add_transaction_sheet.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -105,7 +107,21 @@ class _DashboardScreenState extends State<DashboardScreen>
       floatingActionButton: _buildFab(),
       bottomNavigationBar: AppBottomNav(
         currentIndex: _navIndex,
-        onTap: (i) => setState(() => _navIndex = i),
+        onTap: (i) {
+          if (i == 1) {
+            Navigator.of(context).push(
+              PageRouteBuilder(
+                transitionDuration: const Duration(milliseconds: 300),
+                pageBuilder: (_, animation, __) => FadeTransition(
+                  opacity: animation,
+                  child: const TransactionsScreen(),
+                ),
+              ),
+            ).then((_) => setState(() => _navIndex = 0));
+          } else {
+            setState(() => _navIndex = i);
+          }
+        },
       ),
       body: SafeArea(
         bottom: false,
@@ -157,7 +173,17 @@ class _DashboardScreenState extends State<DashboardScreen>
           color: Colors.transparent,
           child: InkWell(
             customBorder: const CircleBorder(),
-            onTap: () {},
+            onTap: () async {
+              final newTx = await AddTransactionSheet.show(context);
+              if (newTx != null && mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Transaksi berhasil ditambahkan'),
+                    backgroundColor: AppColors.success,
+                  ),
+                );
+              }
+            },
             child: const Icon(
               Icons.add_rounded,
               color: AppColors.bgDeep,

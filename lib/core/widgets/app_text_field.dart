@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:money_manajemen/app/theme/app_theme.dart';
 
 /// Text field with animated border glow on focus + optional
@@ -9,6 +10,7 @@ class AppTextField extends StatefulWidget {
   final bool obscureText;
   final TextEditingController? controller;
   final TextInputType keyboardType;
+  final List<TextInputFormatter>? inputFormatters;
 
   const AppTextField({
     super.key,
@@ -17,6 +19,7 @@ class AppTextField extends StatefulWidget {
     this.obscureText = false,
     this.controller,
     this.keyboardType = TextInputType.text,
+    this.inputFormatters,
   });
 
   @override
@@ -73,6 +76,7 @@ class _AppTextFieldState extends State<AppTextField> {
         focusNode: _focusNode,
         obscureText: _obscure,
         keyboardType: widget.keyboardType,
+        inputFormatters: widget.inputFormatters,
         style: const TextStyle(
           fontFamily: AppTextStyles.fontFamily,
           fontSize: 15,
