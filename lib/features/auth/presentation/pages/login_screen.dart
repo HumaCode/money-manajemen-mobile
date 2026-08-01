@@ -4,6 +4,7 @@ import 'package:money_manajemen/core/widgets/animated_background.dart';
 import 'package:money_manajemen/core/widgets/app_text_field.dart';
 import 'package:money_manajemen/core/widgets/primary_button.dart';
 import 'register_screen.dart';
+import 'package:money_manajemen/features/dashboard/presentation/pages/dashboard_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -61,10 +62,11 @@ class _LoginScreenState extends State<LoginScreen>
     if (!mounted) return;
     setState(() => _isLoading = false);
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Login flow — connect to API next'),
-        backgroundColor: AppColors.bgCardHover,
+    Navigator.of(context).pushReplacement(
+      PageRouteBuilder(
+        transitionDuration: const Duration(milliseconds: 500),
+        pageBuilder: (_, animation, __) =>
+            FadeTransition(opacity: animation, child: const DashboardScreen()),
       ),
     );
   }
