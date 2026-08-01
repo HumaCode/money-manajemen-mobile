@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:money_manajemen/app/theme/app_theme.dart';
 import 'package:money_manajemen/core/widgets/app_bottom_nav.dart';
 import 'package:money_manajemen/core/utils/formatters.dart';
+import 'package:money_manajemen/features/analytics/presentation/pages/analytics_screen.dart';
 import '../widgets/transaction_tile.dart';
 import '../widgets/add_transaction_sheet.dart';
 import '../models/transaction_model.dart';
@@ -183,8 +184,21 @@ class _TransactionsScreenState extends State<TransactionsScreen>
       bottomNavigationBar: AppBottomNav(
         currentIndex: _navIndex,
         onTap: (i) {
-          setState(() => _navIndex = i);
-          if (i == 0) Navigator.of(context).pop();
+          if (i == 0) {
+            Navigator.of(context).pop();
+          } else if (i == 2) {
+            Navigator.of(context).pushReplacement(
+              PageRouteBuilder(
+                transitionDuration: const Duration(milliseconds: 300),
+                pageBuilder: (_, animation, __) => FadeTransition(
+                  opacity: animation,
+                  child: const AnalyticsScreen(),
+                ),
+              ),
+            );
+          } else {
+            setState(() => _navIndex = i);
+          }
         },
       ),
       body: SafeArea(
