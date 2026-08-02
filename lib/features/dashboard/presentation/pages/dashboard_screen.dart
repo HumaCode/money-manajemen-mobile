@@ -5,6 +5,8 @@ import 'package:money_manajemen/core/widgets/dynamic_island_toast.dart';
 import 'package:money_manajemen/features/transactions/presentation/pages/transactions_screen.dart';
 import 'package:money_manajemen/features/analytics/presentation/pages/analytics_screen.dart';
 import 'package:money_manajemen/features/profile/presentation/pages/profile_screen.dart';
+import 'package:money_manajemen/features/auth/data/datasources/auth_local_data_source.dart';
+import 'package:money_manajemen/features/auth/data/models/user_model.dart';
 import 'package:money_manajemen/features/transactions/presentation/widgets/add_transaction_sheet.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -34,6 +36,8 @@ class _DashboardScreenState extends State<DashboardScreen>
         ),
       );
 
+  UserDetail? _user;
+
   @override
   void initState() {
     super.initState();
@@ -41,6 +45,23 @@ class _DashboardScreenState extends State<DashboardScreen>
       vsync: this,
       duration: const Duration(milliseconds: 1000),
     )..forward();
+
+    _loadUser();
+  }
+
+  Future<void> _loadUser() async {
+    final u = await AuthLocalDataSourceImpl().getUser();
+    if (mounted && u != null) {
+      setState(() => _user = u);
+    }
+  }
+
+  String get _userName => _user?.name.isNotEmpty == true ? _user!.name : 'User';
+  String get _userInitials {
+    if (_user == null || _user!.name.trim().isEmpty) return 'U';
+    final parts = _user!.name.trim().split(' ');
+    if (parts.length >= 2) return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    return _user!.name.substring(0, 1).toUpperCase();
   }
 
   @override
@@ -231,9 +252,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                 children: [
                   const Text('Selamat datang,', style: AppTextStyles.tagline),
                   const SizedBox(height: 2),
-                  const Text(
-                    'John Doe 👋',
-                    style: TextStyle(
+                  Text(
+                    '$_userName 👋',
+                    style: const TextStyle(
                       fontFamily: AppTextStyles.fontFamily,
                       fontSize: 20,
                       fontWeight: FontWeight.w700,
@@ -282,15 +303,34 @@ class _DashboardScreenState extends State<DashboardScreen>
                 gradient: AppColors.accentGradient,
               ),
               alignment: Alignment.center,
-              child: const Text(
-                'JD',
-                style: TextStyle(
-                  fontFamily: AppTextStyles.fontFamily,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.bgDeep,
-                  fontSize: 14,
-                ),
-              ),
+              child: _user?.avatar != null && _user!.avatar!.isNotEmpty
+                  ? ClipRRect(
+                      borderRadius: BorderRadius.circular(21),
+                      child: Image.network(
+                        _user!.avatar!,
+                        width: 42,
+                        height: 42,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Text(
+                          _userInitials,
+                          style: const TextStyle(
+                            fontFamily: AppTextStyles.fontFamily,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.bgDeep,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                    )
+                  : Text(
+                      _userInitials,
+                      style: const TextStyle(
+                        fontFamily: AppTextStyles.fontFamily,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.bgDeep,
+                        fontSize: 14,
+                      ),
+                    ),
             ),
           ],
         ),

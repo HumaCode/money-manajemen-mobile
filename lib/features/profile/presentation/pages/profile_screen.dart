@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:money_manajemen/app/theme/app_theme.dart';
+import 'package:money_manajemen/core/database/database_helper.dart';
 import 'package:money_manajemen/core/widgets/app_bottom_nav.dart';
 import 'package:money_manajemen/features/dashboard/presentation/pages/dashboard_screen.dart';
 import 'package:money_manajemen/features/transactions/presentation/pages/transactions_screen.dart';
 import 'package:money_manajemen/features/analytics/presentation/pages/analytics_screen.dart';
 import 'package:money_manajemen/features/auth/presentation/pages/login_screen.dart';
 import 'package:money_manajemen/features/auth/data/datasources/auth_local_data_source.dart';
+import 'package:money_manajemen/features/auth/data/datasources/auth_remote_data_source.dart';
+import 'package:money_manajemen/features/auth/data/models/user_model.dart';
+import 'package:money_manajemen/features/profile/presentation/widgets/edit_profile_sheet.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -19,6 +24,10 @@ class _ProfileScreenState extends State<ProfileScreen>
   late final AnimationController _entrance;
   final int _navIndex = 3;
   bool _notificationsOn = true;
+
+  UserDetail? _user;
+  int _accountsCount = 0;
+  int _transactionsCount = 0;
 
   Animation<double> _fadeFor(double start, double end) => CurvedAnimation(
     parent: _entrance,
@@ -40,6 +49,55 @@ class _ProfileScreenState extends State<ProfileScreen>
       vsync: this,
       duration: const Duration(milliseconds: 900),
     )..forward();
+
+    _loadProfileData();
+  }
+
+  Future<void> _loadProfileData() async {
+    final localUser = await AuthLocalDataSourceImpl().getUser();
+    final localAccs = await DatabaseHelper.instance.getAccounts();
+    final localTxs = await DatabaseHelper.instance.getTransactions();
+
+    if (mounted) {
+      setState(() {
+        _user = localUser;
+        _accountsCount = localAccs.length;
+        _transactionsCount = localTxs.length;
+      });
+    }
+
+    try {
+      final remoteDS = AuthRemoteDataSourceImpl(client: http.Client());
+      final freshUser = await remoteDS.getProfile();
+      if (mounted) {
+        setState(() {
+          _user = freshUser;
+        });
+      }
+    } catch (_) {}
+  }
+
+  String get _userInitials {
+    if (_user == null || _user!.name.trim().isEmpty) return 'U';
+    final parts = _user!.name.trim().split(' ');
+    if (parts.length >= 2) {
+      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    }
+    return _user!.name.substring(0, 1).toUpperCase();
+  }
+
+  Future<void> _openEditProfile() async {
+    if (_user == null) {
+      final user = await AuthLocalDataSourceImpl().getUser();
+      if (user == null) return;
+      _user = user;
+    }
+    final updated = await EditProfileSheet.show(context, user: _user!);
+    if (updated != null && mounted) {
+      setState(() {
+        _user = updated;
+      });
+    }
   }
 
   @override
@@ -202,7 +260,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                   icon: Icons.person_outline_rounded,
                   label: 'Edit Profil',
                   color: AppColors.info,
-                  onTap: () {},
+                  onTap: _openEditProfile,
                 ),
                 _MenuTile(
                   icon: Icons.lock_outline_rounded,
@@ -336,22 +394,41 @@ class _ProfileScreenState extends State<ProfileScreen>
                       gradient: AppColors.accentGradient,
                       boxShadow: [
                         BoxShadow(
-                          color: AppColors.accent.withOpacity(0.3),
+                          color: AppColors.accent.withValues(alpha: 0.3),
                           blurRadius: 20,
                           spreadRadius: 1,
                         ),
                       ],
                     ),
                     alignment: Alignment.center,
-                    child: const Text(
-                      'JD',
-                      style: TextStyle(
-                        fontFamily: AppTextStyles.fontFamily,
-                        fontSize: 28,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.bgDeep,
-                      ),
-                    ),
+                    child: _user?.avatar != null && _user!.avatar!.isNotEmpty
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(42),
+                            child: Image.network(
+                              _user!.avatar!,
+                              width: 84,
+                              height: 84,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Text(
+                                _userInitials,
+                                style: const TextStyle(
+                                  fontFamily: AppTextStyles.fontFamily,
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.bgDeep,
+                                ),
+                              ),
+                            ),
+                          )
+                        : Text(
+                            _userInitials,
+                            style: const TextStyle(
+                              fontFamily: AppTextStyles.fontFamily,
+                              fontSize: 28,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.bgDeep,
+                            ),
+                          ),
                   ),
                   Positioned(
                     right: 0,
@@ -390,9 +467,9 @@ class _ProfileScreenState extends State<ProfileScreen>
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Text(
-                    'John Doe',
-                    style: TextStyle(
+                  Text(
+                    _user?.name.isNotEmpty == true ? _user!.name : 'User',
+                    style: const TextStyle(
                       fontFamily: AppTextStyles.fontFamily,
                       fontSize: 17,
                       fontWeight: FontWeight.w700,
@@ -415,7 +492,10 @@ class _ProfileScreenState extends State<ProfileScreen>
                 ],
               ),
               const SizedBox(height: 3),
-              const Text('john.doe@email.com', style: AppTextStyles.tagline),
+              Text(
+                _user?.email.isNotEmpty == true ? _user!.email : 'user@email.com',
+                style: AppTextStyles.tagline,
+              ),
               const SizedBox(height: 6),
               Container(
                 padding: const EdgeInsets.symmetric(
@@ -423,12 +503,12 @@ class _ProfileScreenState extends State<ProfileScreen>
                   vertical: 4,
                 ),
                 decoration: BoxDecoration(
-                  color: AppColors.accent.withOpacity(0.12),
+                  color: AppColors.accent.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(AppRadius.pill),
                 ),
-                child: const Text(
-                  'Free Plan',
-                  style: TextStyle(
+                child: Text(
+                  _user?.username.isNotEmpty == true ? '@${_user!.username}' : 'Free Plan',
+                  style: const TextStyle(
                     fontFamily: AppTextStyles.fontFamily,
                     fontSize: 10.5,
                     fontWeight: FontWeight.w600,
@@ -449,26 +529,26 @@ class _ProfileScreenState extends State<ProfileScreen>
       child: SlideTransition(
         position: _slideFor(0.15, 0.5),
         child: Row(
-          children: const [
+          children: [
             Expanded(
               child: _StatBox(
                 icon: Icons.account_balance_wallet_outlined,
-                value: '5',
+                value: '$_accountsCount',
                 label: 'Akun',
                 color: AppColors.info,
               ),
             ),
-            SizedBox(width: 10),
+            const SizedBox(width: 10),
             Expanded(
               child: _StatBox(
                 icon: Icons.receipt_long_outlined,
-                value: '156',
+                value: '$_transactionsCount',
                 label: 'Transaksi',
                 color: AppColors.purple,
               ),
             ),
-            SizedBox(width: 10),
-            Expanded(
+            const SizedBox(width: 10),
+            const Expanded(
               child: _StatBox(
                 icon: Icons.pie_chart_outline_rounded,
                 value: '3',

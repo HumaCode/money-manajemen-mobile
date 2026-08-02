@@ -5,6 +5,8 @@ class ApiUrl {
   // Auth
   static const String login = '$baseUrl/auth/login';
   static const String me = '$baseUrl/auth/me';
+  static const String updateProfile = '$baseUrl/auth/profile';
+  static const String updatePassword = '$baseUrl/auth/password';
   static const String logout = '$baseUrl/auth/logout';
 
   // Dashboard Summary

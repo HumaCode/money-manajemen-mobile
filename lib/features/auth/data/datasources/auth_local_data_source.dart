@@ -1,13 +1,18 @@
+import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:money_manajemen/features/auth/data/models/user_model.dart';
 
 abstract class AuthLocalDataSource {
   Future<void> saveToken(String token);
   Future<String?> getToken();
   Future<void> clearToken();
+  Future<void> saveUser(UserDetail user);
+  Future<UserDetail?> getUser();
 }
 
 class AuthLocalDataSourceImpl implements AuthLocalDataSource {
   static const String _tokenKey = 'AUTH_TOKEN';
+  static const String _userKey = 'AUTH_USER';
 
   @override
   Future<void> saveToken(String token) async {
@@ -25,5 +30,24 @@ class AuthLocalDataSourceImpl implements AuthLocalDataSource {
   Future<void> clearToken() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_tokenKey);
+    await prefs.remove(_userKey);
+  }
+
+  @override
+  Future<void> saveUser(UserDetail user) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_userKey, jsonEncode(user.toJson()));
+  }
+
+  @override
+  Future<UserDetail?> getUser() async {
+    final prefs = await SharedPreferences.getInstance();
+    final jsonStr = prefs.getString(_userKey);
+    if (jsonStr != null && jsonStr.isNotEmpty) {
+      try {
+        return UserDetail.fromJson(jsonDecode(jsonStr) as Map<String, dynamic>);
+      } catch (_) {}
+    }
+    return null;
   }
 }
