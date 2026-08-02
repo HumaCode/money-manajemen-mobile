@@ -1,11 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:money_manajemen/app/theme/app_theme.dart';
 import 'package:money_manajemen/core/widgets/app_bottom_nav.dart';
 import 'package:money_manajemen/core/utils/formatters.dart';
 import 'package:money_manajemen/features/analytics/presentation/pages/analytics_screen.dart';
 import 'package:money_manajemen/features/profile/presentation/pages/profile_screen.dart';
+import 'package:money_manajemen/features/auth/data/datasources/auth_local_data_source.dart';
+import '../../data/datasources/transaction_remote_data_source.dart';
+import 'package:money_manajemen/core/widgets/app_loader.dart';
+import 'package:money_manajemen/core/widgets/dynamic_island_toast.dart';
 import '../widgets/transaction_tile.dart';
 import '../widgets/add_transaction_sheet.dart';
+import '../widgets/transaction_detail_sheet.dart';
 import '../models/transaction_model.dart';
 
 class TransactionsScreen extends StatefulWidget {
@@ -25,9 +31,11 @@ class _TransactionsScreenState extends State<TransactionsScreen>
   String _searchQuery = '';
   DateTime _monthCursor = DateTime.now();
 
-  final List<String> _filters = const ['Semua', 'Income', 'Expense'];
+  final List<String> _filters = const ['Semua', 'Income', 'Expense', 'Transfer'];
 
-  late List<TransactionModel> _allTransactions;
+  List<TransactionModel> _allTransactions = [];
+  bool _isLoading = true;
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -37,79 +45,51 @@ class _TransactionsScreenState extends State<TransactionsScreen>
       duration: const Duration(milliseconds: 700),
     )..forward();
 
-    final now = DateTime.now();
-    _allTransactions = [
-      TransactionModel(
-        id: '1',
-        title: 'Gaji Bulanan',
-        category: 'Income',
-        date: now,
-        amount: 15000000,
-        type: TransactionType.income,
-        icon: Icons.work_rounded,
-        color: AppColors.success,
-      ),
-      TransactionModel(
-        id: '2',
-        title: 'Makan Siang',
-        category: 'Food & Dining',
-        date: now,
-        amount: -85000,
-        type: TransactionType.expense,
-        icon: Icons.restaurant_rounded,
-        color: AppColors.warning,
-      ),
-      TransactionModel(
-        id: '3',
-        title: 'Bensin Motor',
-        category: 'Transportation',
-        date: now.subtract(const Duration(days: 1)),
-        amount: -50000,
-        type: TransactionType.expense,
-        icon: Icons.local_gas_station_rounded,
-        color: AppColors.info,
-      ),
-      TransactionModel(
-        id: '4',
-        title: 'Belanja Bulanan',
-        category: 'Shopping',
-        date: now.subtract(const Duration(days: 1)),
-        amount: -320000,
-        type: TransactionType.expense,
-        icon: Icons.shopping_bag_rounded,
-        color: AppColors.purple,
-      ),
-      TransactionModel(
-        id: '5',
-        title: 'Transfer ke Tabungan',
-        category: 'Transfer',
-        date: now.subtract(const Duration(days: 2)),
-        amount: -1000000,
-        type: TransactionType.transfer,
-        icon: Icons.swap_horiz_rounded,
-        color: AppColors.info,
-      ),
-      TransactionModel(
-        id: '6',
-        title: 'Bonus Proyek',
-        category: 'Income',
-        date: now.subtract(const Duration(days: 3)),
-        amount: 2500000,
-        type: TransactionType.income,
-        icon: Icons.card_giftcard_rounded,
-        color: AppColors.success,
-      ),
-      TransactionModel(
-        id: '7',
-        title: 'Tagihan Listrik',
-        category: 'Bills & Utilities',
-        date: now.subtract(const Duration(days: 5)),
-        amount: -450000,
-        type: TransactionType.expense,
-        icon: Icons.bolt_rounded,
-        color: AppColors.warning,
-      ),
-    ];
+    _fetchTransactions();
+  }
+
+  Future<void> _fetchTransactions() async {
+    final remoteDS = TransactionRemoteDataSourceImpl(
+      client: http.Client(),
+      localDataSource: AuthLocalDataSourceImpl(),
+    );
+
+    // 1. Instant load from SQLite database (0ms wait)
+    final localTx = await remoteDS.getLocalTransactions();
+    if (localTx.isNotEmpty && mounted) {
+      setState(() {
+        _allTransactions = localTx;
+        _isLoading = false;
+        _errorMessage = null;
+      });
+    } else if (mounted && _allTransactions.isEmpty) {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+    }
+
+    // 2. Background sync with API
+    try {
+      final apiData = await remoteDS.getTransactions();
+      final mapped = apiData.map((d) => TransactionModel.fromDataTransaksi(d)).toList();
+      if (mounted && mapped.isNotEmpty) {
+        setState(() {
+          _allTransactions = mapped;
+          _isLoading = false;
+          _errorMessage = null;
+        });
+      } else if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    } catch (e) {
+      if (mounted && _allTransactions.isEmpty) {
+        setState(() {
+          _errorMessage = e.toString().replaceAll('Exception: ', '');
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   @override
@@ -124,7 +104,8 @@ class _TransactionsScreenState extends State<TransactionsScreen>
       final matchesFilter =
           _activeFilter == 'Semua' ||
           (_activeFilter == 'Income' && t.type == TransactionType.income) ||
-          (_activeFilter == 'Expense' && t.type == TransactionType.expense);
+          (_activeFilter == 'Expense' && t.type == TransactionType.expense) ||
+          (_activeFilter == 'Transfer' && t.type == TransactionType.transfer);
 
       final matchesSearch =
           _searchQuery.isEmpty ||
@@ -162,16 +143,15 @@ class _TransactionsScreenState extends State<TransactionsScreen>
     });
   }
 
-  void _removeTransaction(String id) {
+  Future<void> _removeTransaction(String id) async {
     setState(() {
       _allTransactions.removeWhere((t) => t.id == id);
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Transaksi dihapus'),
-        backgroundColor: AppColors.bgCardHover,
-      ),
+    final remoteDS = TransactionRemoteDataSourceImpl(
+      client: http.Client(),
+      localDataSource: AuthLocalDataSourceImpl(),
     );
+    await remoteDS.deleteTransaction(id);
   }
 
   @override
@@ -250,41 +230,132 @@ class _TransactionsScreenState extends State<TransactionsScreen>
                 ),
               ),
               Expanded(
-                child: grouped.isEmpty
-                    ? _buildEmptyState()
-                    : ListView(
-                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
-                        children: grouped.entries.map((entry) {
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Padding(
-                                padding: const EdgeInsets.only(
-                                  bottom: 10,
-                                  top: 6,
-                                ),
-                                child: Text(
-                                  entry.key,
-                                  style: const TextStyle(
-                                    fontFamily: AppTextStyles.fontFamily,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.textSecondary,
-                                    letterSpacing: 0.3,
+                child: RefreshIndicator(
+                  color: AppColors.primary,
+                  backgroundColor: AppColors.bgCard,
+                  onRefresh: _fetchTransactions,
+                  child: _isLoading
+                      ? const AppLoader(
+                          message: 'Memuat data transaksi...',
+                        )
+                      : _errorMessage != null
+                          ? ListView(
+                              padding: const EdgeInsets.all(20),
+                              children: [
+                                const SizedBox(height: 40),
+                                Center(
+                                  child: Column(
+                                    children: [
+                                      const Icon(Icons.error_outline_rounded, color: AppColors.error, size: 48),
+                                      const SizedBox(height: 12),
+                                      Text(
+                                        _errorMessage!,
+                                        style: const TextStyle(color: AppColors.textSecondary),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                      const SizedBox(height: 16),
+                                      ElevatedButton.icon(
+                                        onPressed: _fetchTransactions,
+                                        icon: const Icon(Icons.refresh_rounded),
+                                        label: const Text('Coba Lagi'),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: AppColors.primary,
+                                          foregroundColor: Colors.black,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
-                              ),
-                              ...entry.value.map(
-                                (t) => TransactionTile(
-                                  item: t,
-                                  onDismissed: () => _removeTransaction(t.id),
+                              ],
+                            )
+                          : grouped.isEmpty
+                              ? _buildEmptyState()
+                              : ListView(
+                                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
+                                  children: grouped.entries.map((entry) {
+                                    return Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Padding(
+                                          padding: const EdgeInsets.only(
+                                            bottom: 12,
+                                            top: 14,
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                                decoration: BoxDecoration(
+                                                  color: AppColors.accent.withValues(alpha: 0.12),
+                                                  borderRadius: BorderRadius.circular(AppRadius.pill),
+                                                  border: Border.all(color: AppColors.accent.withValues(alpha: 0.3)),
+                                                ),
+                                                child: Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    const Icon(Icons.calendar_today_rounded, size: 12, color: AppColors.accent),
+                                                    const SizedBox(width: 6),
+                                                    Text(
+                                                      entry.key,
+                                                      style: const TextStyle(
+                                                        fontFamily: AppTextStyles.fontFamily,
+                                                        fontSize: 11.5,
+                                                        fontWeight: FontWeight.w600,
+                                                        color: AppColors.accent,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                              const SizedBox(width: 10),
+                                              Expanded(
+                                                child: Divider(
+                                                  color: AppColors.cardBorder.withValues(alpha: 0.6),
+                                                  height: 1,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        ...entry.value.map(
+                                          (t) => TransactionTile(
+                                            item: t,
+                                            onTap: () {
+                                              TransactionDetailSheet.show(
+                                                context,
+                                                item: t,
+                                                onDelete: () => _removeTransaction(t.id),
+                                                onEdit: () async {
+                                                  final updatedTx = await AddTransactionSheet.show(
+                                                    context,
+                                                    transactionToEdit: t,
+                                                  );
+                                                  if (updatedTx != null && mounted) {
+                                                    setState(() {
+                                                      final index = _allTransactions.indexWhere((x) => x.id == t.id);
+                                                      if (index != -1) {
+                                                        _allTransactions[index] = updatedTx;
+                                                      }
+                                                    });
+                                                    DynamicIslandToast.show(
+                                                      context,
+                                                      title: 'Diperbarui',
+                                                      message: 'Transaksi "${updatedTx.title}" berhasil diperbarui',
+                                                      type: DynamicToastType.success,
+                                                    );
+                                                  }
+                                                },
+                                              );
+                                            },
+                                            onDismissed: () => _removeTransaction(t.id),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                      ],
+                                    );
+                                  }).toList(),
                                 ),
-                              ),
-                              const SizedBox(height: 8),
-                            ],
-                          );
-                        }).toList(),
-                      ),
+                ),
               ),
             ],
           ),
@@ -319,11 +390,11 @@ class _TransactionsScreenState extends State<TransactionsScreen>
                 _allTransactions.insert(0, newTx);
               });
               if (!mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Transaksi berhasil ditambahkan'),
-                  backgroundColor: AppColors.success,
-                ),
+              DynamicIslandToast.show(
+                context,
+                title: 'Transaksi Berhasil',
+                message: 'Transaksi baru berhasil ditambahkan',
+                type: DynamicToastType.success,
               );
             }
           },

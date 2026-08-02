@@ -172,21 +172,21 @@ class _DynamicIslandWidgetState extends State<_DynamicIslandWidget>
                         vertical: 12,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF0A0F1D).withOpacity(0.92),
+                        color: const Color(0xFF0A0F1D).withValues(alpha: 0.92),
                         borderRadius: BorderRadius.circular(30),
                         border: Border.all(
-                          color: neon.withOpacity(0.8),
+                          color: neon.withValues(alpha: 0.8),
                           width: 1.5,
                         ),
                         boxShadow: [
                           // Neon Outer Glow
                           BoxShadow(
-                            color: neon.withOpacity(0.5 * _expandAnimation.value),
+                            color: neon.withValues(alpha: 0.5 * _expandAnimation.value),
                             blurRadius: 18,
                             spreadRadius: 2,
                           ),
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.5),
+                            color: Colors.black.withValues(alpha: 0.5),
                             blurRadius: 10,
                             offset: const Offset(0, 4),
                           ),
@@ -200,10 +200,10 @@ class _DynamicIslandWidgetState extends State<_DynamicIslandWidget>
                             padding: const EdgeInsets.all(6),
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              color: neon.withOpacity(0.15),
+                              color: neon.withValues(alpha: 0.15),
                               boxShadow: [
                                 BoxShadow(
-                                  color: neon.withOpacity(0.4),
+                                  color: neon.withValues(alpha: 0.4),
                                   blurRadius: 8,
                                   spreadRadius: 1,
                                 ),
@@ -252,7 +252,7 @@ class _DynamicIslandWidgetState extends State<_DynamicIslandWidget>
                           Icon(
                             Icons.close_rounded,
                             size: 16,
-                            color: AppColors.textMuted.withOpacity(0.7),
+                            color: AppColors.textMuted.withValues(alpha: 0.7),
                           ),
                         ],
                       ),

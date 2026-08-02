@@ -5,6 +5,7 @@ import 'package:money_manajemen/features/dashboard/presentation/pages/dashboard_
 import 'package:money_manajemen/features/transactions/presentation/pages/transactions_screen.dart';
 import 'package:money_manajemen/features/analytics/presentation/pages/analytics_screen.dart';
 import 'package:money_manajemen/features/auth/presentation/pages/login_screen.dart';
+import 'package:money_manajemen/features/auth/data/datasources/auth_local_data_source.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -164,6 +165,8 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
 
     if (confirmed == true && mounted) {
+      await AuthLocalDataSourceImpl().clearToken();
+      if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const LoginScreen()),
         (route) => false,

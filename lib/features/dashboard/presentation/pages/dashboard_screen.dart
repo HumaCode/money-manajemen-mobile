@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:money_manajemen/app/theme/app_theme.dart';
 import 'package:money_manajemen/core/widgets/app_bottom_nav.dart';
+import 'package:money_manajemen/core/widgets/dynamic_island_toast.dart';
 import 'package:money_manajemen/features/transactions/presentation/pages/transactions_screen.dart';
 import 'package:money_manajemen/features/analytics/presentation/pages/analytics_screen.dart';
 import 'package:money_manajemen/features/profile/presentation/pages/profile_screen.dart';
@@ -198,18 +199,18 @@ class _DashboardScreenState extends State<DashboardScreen>
             onTap: () async {
               final newTx = await AddTransactionSheet.show(context);
               if (newTx != null && mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Transaksi berhasil ditambahkan'),
-                    backgroundColor: AppColors.success,
-                  ),
+                DynamicIslandToast.show(
+                  context,
+                  title: 'Transaksi Berhasil',
+                  message: 'Transaksi baru berhasil ditambahkan',
+                  type: DynamicToastType.success,
                 );
               }
             },
             child: const Icon(
-              Icons.add_rounded,
+              Icons.qr_code_scanner_rounded,
               color: AppColors.bgDeep,
-              size: 30,
+              size: 28,
             ),
           ),
         ),

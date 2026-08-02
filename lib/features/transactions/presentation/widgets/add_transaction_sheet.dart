@@ -1,19 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
 import 'package:money_manajemen/app/theme/app_theme.dart';
 import 'package:money_manajemen/core/widgets/app_text_field.dart';
+import 'package:money_manajemen/core/widgets/dynamic_island_toast.dart';
 import 'package:money_manajemen/core/widgets/primary_button.dart';
+import 'package:money_manajemen/features/auth/data/datasources/auth_local_data_source.dart';
+import 'package:money_manajemen/features/transactions/data/datasources/master_remote_data_source.dart';
+import 'package:money_manajemen/features/transactions/data/models/category_model.dart';
+import 'package:money_manajemen/features/transactions/data/models/account_model.dart';
 import 'package:money_manajemen/features/transactions/data/models/transaction_model.dart';
 
 class AddTransactionSheet extends StatefulWidget {
-  const AddTransactionSheet({super.key});
+  final TransactionModel? transactionToEdit;
 
-  static Future<TransactionModel?> show(BuildContext context) {
+  const AddTransactionSheet({super.key, this.transactionToEdit});
+
+  static Future<TransactionModel?> show(BuildContext context, {TransactionModel? transactionToEdit}) {
     return showModalBottomSheet<TransactionModel>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => const AddTransactionSheet(),
+      builder: (context) => AddTransactionSheet(transactionToEdit: transactionToEdit),
     );
   }
 
@@ -22,19 +30,219 @@ class AddTransactionSheet extends StatefulWidget {
 }
 
 class _AddTransactionSheetState extends State<AddTransactionSheet> {
-  final _titleController = TextEditingController();
-  final _amountController = TextEditingController();
+  late final TextEditingController _titleController;
+  late final TextEditingController _amountController;
 
   TransactionType _selectedType = TransactionType.expense;
-  String _selectedCategory = 'Food & Dining';
+  
+  List<CategoryModel> _allCategories = [];
+  List<AccountModel> _allAccounts = [];
+  bool _isLoadingMaster = true;
+  bool _isSubmitting = false;
 
-  final Map<String, ({IconData icon, Color color})> _categories = {
-    'Food & Dining': (icon: Icons.restaurant_rounded, color: AppColors.warning),
-    'Transportation': (icon: Icons.local_gas_station_rounded, color: AppColors.info),
-    'Shopping': (icon: Icons.shopping_bag_rounded, color: AppColors.purple),
-    'Bills & Utilities': (icon: Icons.flash_on_rounded, color: AppColors.error),
-    'Gaji / Income': (icon: Icons.work_rounded, color: AppColors.success),
-  };
+  CategoryModel? _selectedCategory;
+  AccountModel? _selectedAccount; // For Income / Expense
+  AccountModel? _fromAccount;     // For Transfer
+  AccountModel? _toAccount;       // For Transfer
+
+  @override
+  void initState() {
+    super.initState();
+    final editItem = widget.transactionToEdit;
+    _titleController = TextEditingController(text: editItem?.title ?? '');
+    _amountController = TextEditingController(text: editItem != null ? editItem.amount.abs().toString() : '');
+    if (editItem != null) {
+      _selectedType = editItem.type;
+    }
+    _fetchMasterData();
+  }
+
+  void _applyDefaultSelections() {
+    final filteredCats = _filteredCategories;
+    if (filteredCats.isNotEmpty && (_selectedCategory == null || !filteredCats.contains(_selectedCategory))) {
+      _selectedCategory = filteredCats.first;
+    }
+    if (_allAccounts.isNotEmpty) {
+      if (_selectedAccount == null || !_allAccounts.contains(_selectedAccount)) {
+        _selectedAccount = _allAccounts.first;
+      }
+      if (_fromAccount == null || !_allAccounts.contains(_fromAccount)) {
+        _fromAccount = _allAccounts.first;
+      }
+      if (_toAccount == null || !_allAccounts.contains(_toAccount)) {
+        _toAccount = _allAccounts.length > 1 ? _allAccounts[1] : _allAccounts.first;
+      }
+    }
+  }
+
+  Future<void> _fetchMasterData() async {
+    final masterDS = MasterRemoteDataSourceImpl(
+      client: http.Client(),
+      localDataSource: AuthLocalDataSourceImpl(),
+    );
+
+    // 1. Instant load from local cache (0ms wait)
+    final cachedCats = await masterDS.getCachedCategories();
+    final cachedAccs = await masterDS.getCachedAccounts();
+
+    if ((cachedCats.isNotEmpty || cachedAccs.isNotEmpty) && mounted) {
+      setState(() {
+        _allCategories = cachedCats;
+        _allAccounts = cachedAccs;
+        _isLoadingMaster = false;
+        _applyDefaultSelections();
+      });
+    }
+
+    // 2. Silent background revalidation from database/API
+    try {
+      final results = await Future.wait([
+        masterDS.getCategories(),
+        masterDS.getAccounts(),
+      ]);
+
+      if (mounted) {
+        setState(() {
+          _allCategories = results[0] as List<CategoryModel>;
+          _allAccounts = results[1] as List<AccountModel>;
+          _isLoadingMaster = false;
+          _applyDefaultSelections();
+        });
+      }
+    } catch (_) {
+      if (mounted && _allCategories.isEmpty) {
+        setState(() => _isLoadingMaster = false);
+      }
+    }
+  }
+
+  List<CategoryModel> get _filteredCategories {
+    if (_selectedType == TransactionType.expense) {
+      return _allCategories.where((c) => c.type.toLowerCase() == 'expense').toList();
+    } else if (_selectedType == TransactionType.income) {
+      return _allCategories.where((c) => c.type.toLowerCase() == 'income').toList();
+    }
+    return [];
+  }
+
+  void _onTypeChanged(TransactionType newType) {
+    setState(() {
+      _selectedType = newType;
+      final filteredCats = _filteredCategories;
+      if (filteredCats.isNotEmpty) {
+        _selectedCategory = filteredCats.first;
+      } else {
+        _selectedCategory = null;
+      }
+    });
+  }
+
+  Future<void> _submit() async {
+    if (_titleController.text.trim().isEmpty) {
+      _showSnackBar('Harap masukkan judul transaksi');
+      return;
+    }
+    final amountText = _amountController.text.replaceAll('.', '').replaceAll(',', '').trim();
+    final amount = int.tryParse(amountText) ?? 0;
+    if (amount <= 0) {
+      _showSnackBar('Nominal transaksi tidak boleh kosong');
+      return;
+    }
+
+    if (_selectedType != TransactionType.transfer && _selectedAccount == null) {
+      _showSnackBar('Harap pilih akun/rekening');
+      return;
+    }
+
+    if (_selectedType != TransactionType.transfer && _selectedCategory == null) {
+      _showSnackBar('Harap pilih kategori transaksi');
+      return;
+    }
+
+    if (_selectedType == TransactionType.transfer) {
+      if (_fromAccount == null || _toAccount == null) {
+        _showSnackBar('Harap pilih akun asal dan akun tujuan');
+        return;
+      }
+      if (_fromAccount!.id == _toAccount!.id) {
+        _showSnackBar('Akun asal dan akun tujuan tidak boleh sama');
+        return;
+      }
+    }
+
+    setState(() => _isSubmitting = true);
+
+    String typeString = 'expense';
+    if (_selectedType == TransactionType.income) typeString = 'income';
+    if (_selectedType == TransactionType.transfer) typeString = 'transfer';
+
+    final now = DateTime.now();
+    final dateStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+
+    final payload = <String, dynamic>{
+      'description': _titleController.text.trim(),
+      'title': _titleController.text.trim(),
+      'amount': amount,
+      'type': typeString,
+      'transaction_date': dateStr,
+    };
+
+    if (_selectedType == TransactionType.transfer) {
+      payload['account_id'] = _fromAccount?.id;
+      payload['to_account_id'] = _toAccount?.id;
+    } else {
+      payload['account_id'] = _selectedAccount?.id;
+      if (_selectedCategory != null) {
+        payload['category_id'] = _selectedCategory?.id;
+      }
+    }
+
+    try {
+      final masterDS = MasterRemoteDataSourceImpl(
+        client: http.Client(),
+        localDataSource: AuthLocalDataSourceImpl(),
+      );
+      
+      if (widget.transactionToEdit != null) {
+        await masterDS.updateTransaction(widget.transactionToEdit!.id, payload);
+      } else {
+        await masterDS.createTransaction(payload);
+      }
+
+      if (!mounted) return;
+      final resultTx = TransactionModel(
+        id: widget.transactionToEdit?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
+        title: _titleController.text.trim(),
+        category: _selectedType == TransactionType.transfer
+            ? 'Transfer'
+            : (_selectedCategory?.name ?? 'Umum'),
+        amount: _selectedType == TransactionType.expense ? -amount : amount,
+        type: _selectedType,
+        date: widget.transactionToEdit?.date ?? DateTime.now(),
+        icon: _selectedType == TransactionType.transfer
+            ? Icons.swap_horiz_rounded
+            : (_selectedType == TransactionType.income ? Icons.work_rounded : Icons.restaurant_rounded),
+        color: _selectedType == TransactionType.transfer
+            ? AppColors.info
+            : (_selectedType == TransactionType.income ? AppColors.success : AppColors.warning),
+      );
+
+      Navigator.of(context).pop(resultTx);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+        _showSnackBar(e.toString().replaceAll('Exception: ', ''));
+      }
+    }
+  }
+
+  void _showSnackBar(String text) {
+    DynamicIslandToast.show(
+      context,
+      message: text,
+      type: DynamicToastType.error,
+    );
+  }
 
   @override
   void dispose() {
@@ -43,31 +251,10 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
     super.dispose();
   }
 
-  void _submit() {
-    if (_titleController.text.trim().isEmpty) return;
-    final amountText = _amountController.text.replaceAll('.', '').replaceAll(',', '').trim();
-    final amount = int.tryParse(amountText) ?? 0;
-    if (amount <= 0) return;
-
-    final catInfo = _categories[_selectedCategory] ??
-        (icon: Icons.receipt_long_rounded, color: AppColors.accent);
-
-    final newTransaction = TransactionModel(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      title: _titleController.text.trim(),
-      category: _selectedCategory,
-      amount: _selectedType == TransactionType.expense ? -amount : amount,
-      type: _selectedType,
-      date: DateTime.now(),
-      icon: catInfo.icon,
-      color: catInfo.color,
-    );
-
-    Navigator.of(context).pop(newTransaction);
-  }
-
   @override
   Widget build(BuildContext context) {
+    final categories = _filteredCategories;
+
     return Container(
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom + 20,
@@ -98,9 +285,9 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  'Tambah Transaksi',
-                  style: TextStyle(
+                Text(
+                  widget.transactionToEdit != null ? 'Edit Transaksi' : 'Tambah Transaksi',
+                  style: const TextStyle(
                     fontFamily: AppTextStyles.fontFamily,
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
@@ -114,6 +301,7 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
               ],
             ),
             const SizedBox(height: 16),
+
             // Tipe Selector Chips
             Row(
               children: [
@@ -121,26 +309,27 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                   label: 'Pengeluaran',
                   isSelected: _selectedType == TransactionType.expense,
                   color: AppColors.error,
-                  onTap: () => setState(() => _selectedType = TransactionType.expense),
+                  onTap: () => _onTypeChanged(TransactionType.expense),
                 ),
                 const SizedBox(width: 8),
                 _TypeChip(
                   label: 'Pemasukan',
                   isSelected: _selectedType == TransactionType.income,
                   color: AppColors.success,
-                  onTap: () => setState(() => _selectedType = TransactionType.income),
+                  onTap: () => _onTypeChanged(TransactionType.income),
                 ),
                 const SizedBox(width: 8),
                 _TypeChip(
                   label: 'Transfer',
                   isSelected: _selectedType == TransactionType.transfer,
                   color: AppColors.info,
-                  onTap: () => setState(() => _selectedType = TransactionType.transfer),
+                  onTap: () => _onTypeChanged(TransactionType.transfer),
                 ),
               ],
             ),
             const SizedBox(height: 20),
-            // Form fields
+
+            // Form Fields
             AppTextField(
               controller: _titleController,
               label: 'Judul Transaksi',
@@ -155,49 +344,155 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             ),
             const SizedBox(height: 20),
-            const Text(
-              'Kategori',
-              style: TextStyle(
-                fontFamily: AppTextStyles.fontFamily,
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textSecondary,
+
+            // Akun Selector Section
+            if (_selectedType == TransactionType.transfer) ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildAccountDropdown(
+                      label: 'Dari Akun',
+                      selected: _fromAccount,
+                      onChanged: (acc) => setState(() => _fromAccount = acc),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _buildAccountDropdown(
+                      label: 'Ke Akun',
+                      selected: _toAccount,
+                      onChanged: (acc) => setState(() => _toAccount = acc),
+                    ),
+                  ),
+                ],
               ),
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: _categories.keys.map((cat) {
-                final isSelected = cat == _selectedCategory;
-                return ChoiceChip(
-                  label: Text(cat),
-                  selected: isSelected,
-                  selectedColor: AppColors.accent.withValues(alpha: 0.2),
-                  backgroundColor: AppColors.bgDeep,
-                  labelStyle: TextStyle(
-                    fontFamily: AppTextStyles.fontFamily,
-                    fontSize: 12,
-                    color: isSelected ? AppColors.accent : AppColors.textSecondary,
-                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.normal,
+              const SizedBox(height: 20),
+            ] else ...[
+              _buildAccountDropdown(
+                label: 'Pilih Akun / Rekening',
+                selected: _selectedAccount,
+                onChanged: (acc) => setState(() => _selectedAccount = acc),
+              ),
+              const SizedBox(height: 20),
+            ],
+
+            // Kategori Section (Sembunyi jika Transfer)
+            if (_selectedType != TransactionType.transfer) ...[
+              const Text(
+                'Kategori',
+                style: TextStyle(
+                  fontFamily: AppTextStyles.fontFamily,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 10),
+              if (_isLoadingMaster)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8.0),
+                  child: SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accent),
                   ),
-                  side: BorderSide(
-                    color: isSelected ? AppColors.accent : AppColors.cardBorder,
-                  ),
-                  onSelected: (val) {
-                    if (val) setState(() => _selectedCategory = cat);
-                  },
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: 24),
+                )
+              else if (categories.isEmpty)
+                const Text(
+                  'Tidak ada kategori tersedia',
+                  style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+                )
+              else
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: categories.map((cat) {
+                    final isSelected = cat.id == _selectedCategory?.id;
+                    return ChoiceChip(
+                      label: Text(cat.name),
+                      selected: isSelected,
+                      selectedColor: AppColors.accent.withValues(alpha: 0.2),
+                      backgroundColor: AppColors.bgDeep,
+                      labelStyle: TextStyle(
+                        fontFamily: AppTextStyles.fontFamily,
+                        fontSize: 12,
+                        color: isSelected ? AppColors.accent : AppColors.textSecondary,
+                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.normal,
+                      ),
+                      side: BorderSide(
+                        color: isSelected ? AppColors.accent : AppColors.cardBorder,
+                      ),
+                      onSelected: (val) {
+                        if (val) setState(() => _selectedCategory = cat);
+                      },
+                    );
+                  }).toList(),
+                ),
+              const SizedBox(height: 24),
+            ],
+
             PrimaryButton(
-              label: 'Simpan Transaksi',
-              onPressed: _submit,
+              label: _isSubmitting
+                  ? 'Menyimpan...'
+                  : (widget.transactionToEdit != null ? 'Simpan Perubahan' : 'Simpan Transaksi'),
+              onPressed: _isSubmitting ? () {} : _submit,
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildAccountDropdown({
+    required String label,
+    required AccountModel? selected,
+    required ValueChanged<AccountModel?> onChanged,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontFamily: AppTextStyles.fontFamily,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textSecondary,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          decoration: BoxDecoration(
+            color: AppColors.bgDeep,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.cardBorder),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<AccountModel>(
+              value: selected,
+              isExpanded: true,
+              dropdownColor: AppColors.bgCard,
+              hint: const Text('Pilih Akun', style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
+              icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.textSecondary),
+              items: _allAccounts.map((acc) {
+                return DropdownMenuItem<AccountModel>(
+                  value: acc,
+                  child: Text(
+                    acc.name.isNotEmpty ? acc.name : 'Akun ${acc.id}',
+                    style: const TextStyle(
+                      fontFamily: AppTextStyles.fontFamily,
+                      fontSize: 13,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                );
+              }).toList(),
+              onChanged: onChanged,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

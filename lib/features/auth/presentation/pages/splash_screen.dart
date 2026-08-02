@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:money_manajemen/app/theme/app_theme.dart';
 import 'package:money_manajemen/core/widgets/animated_background.dart';
+import 'package:money_manajemen/features/auth/data/datasources/auth_local_data_source.dart';
+import 'package:money_manajemen/features/dashboard/presentation/pages/dashboard_screen.dart';
 import 'login_screen.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -103,11 +105,18 @@ class _SplashScreenState extends State<SplashScreen>
     await Future.delayed(const Duration(milliseconds: 250));
     if (!mounted) return;
 
+    final token = await AuthLocalDataSourceImpl().getToken();
+    final Widget targetScreen = (token != null && token.isNotEmpty)
+        ? const DashboardScreen()
+        : const LoginScreen();
+
+    if (!mounted) return;
+
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 600),
         pageBuilder: (_, animation, __) =>
-            FadeTransition(opacity: animation, child: const LoginScreen()),
+            FadeTransition(opacity: animation, child: targetScreen),
       ),
     );
   }

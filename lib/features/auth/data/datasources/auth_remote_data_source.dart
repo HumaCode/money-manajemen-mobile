@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:money_manajemen/app/constants/api_url.dart';
 import 'package:money_manajemen/features/auth/data/models/user_model.dart';
@@ -30,6 +31,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
           'X-App-Key': ApiUrl.appKey,
+          'x-api-key': ApiUrl.appKey,
         },
         body: jsonEncode({
           'login': login,
@@ -52,6 +54,9 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       }
       if (e is TimeoutException) {
         throw Exception('Koneksi ke server timeout. Periksa koneksi internet Anda.');
+      }
+      if (e is SocketException || e is http.ClientException) {
+        throw Exception('Gagal terhubung ke server. Periksa koneksi jaringan Anda.');
       }
       rethrow;
     }
