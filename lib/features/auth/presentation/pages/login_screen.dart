@@ -10,6 +10,8 @@ import 'package:money_manajemen/features/auth/presentation/bloc/auth_state.dart'
 import 'package:money_manajemen/features/dashboard/presentation/pages/dashboard_screen.dart';
 import 'register_screen.dart';
 
+import 'package:money_manajemen/core/widgets/dynamic_island_toast.dart';
+
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -62,11 +64,10 @@ class _LoginScreenState extends State<LoginScreen>
     final passwordText = _passwordController.text;
 
     if (loginText.isEmpty || passwordText.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Username/Email dan Password wajib diisi'),
-          backgroundColor: AppColors.error,
-        ),
+      DynamicIslandToast.show(
+        context,
+        message: 'Username/Email dan Password wajib diisi',
+        type: DynamicToastType.warning,
       );
       return;
     }
@@ -85,20 +86,18 @@ class _LoginScreenState extends State<LoginScreen>
       body: BlocConsumer<AuthBloc, AuthState>(
         listener: (context, state) {
           if (state is AuthFailure) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(state.errorMessage),
-                backgroundColor: AppColors.error,
-              ),
+            DynamicIslandToast.show(
+              context,
+              message: state.errorMessage,
+              type: DynamicToastType.error,
             );
           } else if (state is AuthSuccess) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(state.userModel.message.isNotEmpty
-                    ? state.userModel.message
-                    : 'Login Berhasil!'),
-                backgroundColor: AppColors.success,
-              ),
+            DynamicIslandToast.show(
+              context,
+              message: state.userModel.message.isNotEmpty
+                  ? state.userModel.message
+                  : 'Login Berhasil!',
+              type: DynamicToastType.success,
             );
 
             Navigator.of(context).pushReplacement(
