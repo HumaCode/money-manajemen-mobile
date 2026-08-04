@@ -13,15 +13,31 @@ import 'package:money_manajemen/features/transactions/data/models/transaction_mo
 
 class AddTransactionSheet extends StatefulWidget {
   final TransactionModel? transactionToEdit;
+  final String? initialTitle;
+  final int? initialAmount;
 
-  const AddTransactionSheet({super.key, this.transactionToEdit});
+  const AddTransactionSheet({
+    super.key,
+    this.transactionToEdit,
+    this.initialTitle,
+    this.initialAmount,
+  });
 
-  static Future<TransactionModel?> show(BuildContext context, {TransactionModel? transactionToEdit}) {
+  static Future<TransactionModel?> show(
+    BuildContext context, {
+    TransactionModel? transactionToEdit,
+    String? initialTitle,
+    int? initialAmount,
+  }) {
     return showModalBottomSheet<TransactionModel>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => AddTransactionSheet(transactionToEdit: transactionToEdit),
+      builder: (context) => AddTransactionSheet(
+        transactionToEdit: transactionToEdit,
+        initialTitle: initialTitle,
+        initialAmount: initialAmount,
+      ),
     );
   }
 
@@ -49,8 +65,14 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
   void initState() {
     super.initState();
     final editItem = widget.transactionToEdit;
-    _titleController = TextEditingController(text: editItem?.title ?? '');
-    _amountController = TextEditingController(text: editItem != null ? editItem.amount.abs().toString() : '');
+    _titleController = TextEditingController(text: editItem?.title ?? widget.initialTitle ?? '');
+    _amountController = TextEditingController(
+      text: editItem != null
+          ? editItem.amount.abs().toString()
+          : (widget.initialAmount != null && widget.initialAmount! > 0
+              ? widget.initialAmount.toString()
+              : ''),
+    );
     if (editItem != null) {
       _selectedType = editItem.type;
     }

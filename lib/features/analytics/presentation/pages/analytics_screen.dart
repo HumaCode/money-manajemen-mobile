@@ -1,10 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:http/http.dart' as http;
 import 'package:money_manajemen/app/theme/app_theme.dart';
 import 'package:money_manajemen/core/widgets/app_bottom_nav.dart';
+import 'package:money_manajemen/features/auth/data/datasources/auth_local_data_source.dart';
 import '../widgets/category_progress_row.dart';
 import '../models/category_spend_model.dart';
+import 'package:money_manajemen/features/analytics/data/models/analytics_model.dart';
+import 'package:money_manajemen/features/analytics/data/datasources/analytics_remote_data_source.dart';
+import 'package:money_manajemen/features/transactions/data/datasources/transaction_remote_data_source.dart';
+import 'package:money_manajemen/features/transactions/data/models/transaction_model.dart';
+import 'package:money_manajemen/core/database/database_helper.dart';
 import 'package:money_manajemen/core/utils/formatters.dart';
+import 'package:money_manajemen/core/widgets/app_empty_state.dart';
+import 'package:money_manajemen/core/widgets/app_skeleton.dart';
 import 'package:money_manajemen/features/dashboard/presentation/pages/dashboard_screen.dart';
 import 'package:money_manajemen/features/transactions/presentation/pages/transactions_screen.dart';
 import 'package:money_manajemen/features/profile/presentation/pages/profile_screen.dart';
@@ -19,49 +28,19 @@ class AnalyticsScreen extends StatefulWidget {
 class _AnalyticsScreenState extends State<AnalyticsScreen>
     with SingleTickerProviderStateMixin {
   late final AnimationController _entrance;
-  int _navIndex = 2;
+  final int _navIndex = 2;
   String _activePeriod = 'Bulan Ini';
   int _touchedPieIndex = -1;
 
+  late final AnalyticsRemoteDataSource _remoteDataSource;
+  bool _isLoading = false;
+  WalletSummaryModel? _walletSummary;
+
   final List<String> _periods = const ['Minggu Ini', 'Bulan Ini', 'Tahun Ini'];
 
-  final List<CategorySpendModel> _categorySpends = const [
-    CategorySpendModel(
-      name: 'Makanan',
-      emoji: '🍔',
-      amount: 3200000,
-      percentage: 0.85,
-    ),
-    CategorySpendModel(
-      name: 'Transportasi',
-      emoji: '🚗',
-      amount: 2100000,
-      percentage: 0.65,
-    ),
-    CategorySpendModel(
-      name: 'Belanja',
-      emoji: '🛍️',
-      amount: 1800000,
-      percentage: 0.50,
-    ),
-    CategorySpendModel(
-      name: 'Tagihan',
-      emoji: '💡',
-      amount: 1400000,
-      percentage: 0.35,
-    ),
-  ];
-
-  final List<Map<String, dynamic>> _monthlyData = const [
-    {'label': 'Ags', 'income': 12.0, 'expense': 7.5},
-    {'label': 'Sep', 'income': 13.5, 'expense': 8.2},
-    {'label': 'Okt', 'income': 14.2, 'expense': 7.8},
-    {'label': 'Nov', 'income': 13.8, 'expense': 8.5},
-    {'label': 'Des', 'income': 14.5, 'expense': 7.9},
-    {'label': 'Jan', 'income': 15.0, 'expense': 8.5},
-  ];
-
-  final List<double> _dailySpending = const [250, 180, 320, 290, 410, 350, 280];
+  List<CategorySpendModel> _categorySpends = [];
+  List<Map<String, dynamic>> _monthlyData = [];
+  List<double> _dailySpending = [];
 
   Animation<double> _fadeFor(double start, double end) => CurvedAnimation(
     parent: _entrance,
@@ -83,6 +62,199 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
       vsync: this,
       duration: const Duration(milliseconds: 1000),
     )..forward();
+
+    _remoteDataSource = AnalyticsRemoteDataSourceImpl(
+      client: http.Client(),
+      localDataSource: AuthLocalDataSourceImpl(),
+    );
+
+    _loadAnalyticsData();
+  }
+
+  Future<void> _loadAnalyticsData({bool showLoading = true}) async {
+    if (!mounted) return;
+    if (showLoading && _isLoading == false && _walletSummary == null) {
+      setState(() => _isLoading = true);
+    }
+
+    // 1. Immediately render offline local data from SQLite
+    await _calculateFromLocalTransactions();
+
+    // 2. Silently sync latest remote analytics from Web API in background
+    _syncBackgroundAnalytics();
+  }
+
+  Future<void> _syncBackgroundAnalytics() async {
+    String periodParam = 'month';
+    if (_activePeriod == 'Minggu Ini') periodParam = 'week';
+    if (_activePeriod == 'Tahun Ini') periodParam = 'year';
+
+    try {
+      final txRemoteDS = TransactionRemoteDataSourceImpl(
+        client: http.Client(),
+        localDataSource: AuthLocalDataSourceImpl(),
+      );
+      await txRemoteDS.getTransactions();
+
+      if (mounted) {
+        await _calculateFromLocalTransactions();
+      }
+
+      final summary = await _remoteDataSource.getWalletSummary(period: periodParam);
+      final topExpenses = await _remoteDataSource.getTopExpenses(period: periodParam);
+
+      if (mounted) {
+        if (summary.totalIncome > 0 || summary.totalExpense > 0) {
+          setState(() {
+            _walletSummary = summary;
+            if (topExpenses.isNotEmpty) {
+              _categorySpends = topExpenses.map((e) => CategorySpendModel(
+                name: e.categoryName,
+                emoji: e.emoji,
+                amount: e.amount.toInt(),
+                percentage: e.percentage > 1.0 ? e.percentage / 100.0 : e.percentage,
+              )).toList();
+            }
+            _isLoading = false;
+          });
+        }
+      }
+    } catch (_) {
+      // Offline mode fallback: keep rendered SQLite local state
+    }
+  }
+
+  Future<void> _calculateFromLocalTransactions() async {
+    try {
+      final localTx = await DatabaseHelper.instance.getTransactions();
+
+      // Calculate 6 months dynamic bar data
+      final now = DateTime.now();
+      final monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Ags', 'Sep', 'Okt', 'Nov', 'Des'];
+      List<Map<String, dynamic>> calculatedMonthlyData = [];
+
+      for (int i = 5; i >= 0; i--) {
+        final date = DateTime(now.year, now.month - i, 1);
+        final monthLabel = monthNames[date.month - 1];
+
+        final mTx = localTx.where((t) => t.date.year == date.year && t.date.month == date.month);
+        double mInc = 0;
+        double mExp = 0;
+        for (var t in mTx) {
+          final absAmount = t.amount.abs().toDouble();
+          if (t.isIncome) mInc += absAmount;
+          if (t.type == TransactionType.expense) mExp += absAmount;
+        }
+
+        calculatedMonthlyData.add({
+          'label': monthLabel,
+          'income': mInc / 1000000.0,
+          'expense': mExp / 1000000.0,
+        });
+      }
+
+      if (localTx.isEmpty) {
+        if (mounted) {
+          setState(() {
+            _monthlyData = calculatedMonthlyData;
+            _dailySpending = List.filled(7, 0.0);
+            _walletSummary = WalletSummaryModel(
+              totalBalance: 0,
+              totalIncome: 0,
+              totalExpense: 0,
+              incomeChangePercentage: 0,
+              expenseChangePercentage: 0,
+            );
+            _categorySpends = [];
+            _isLoading = false;
+          });
+        }
+        return;
+      }
+
+      List<TransactionModel> periodTx = localTx;
+      if (_activePeriod == 'Minggu Ini') {
+        periodTx = localTx.where((t) => now.difference(t.date).inDays.abs() <= 7).toList();
+      } else if (_activePeriod == 'Bulan Ini') {
+        periodTx = localTx.where((t) => t.date.year == now.year && t.date.month == now.month).toList();
+      } else if (_activePeriod == 'Tahun Ini') {
+        periodTx = localTx.where((t) => t.date.year == now.year).toList();
+      }
+
+      if (periodTx.isEmpty) {
+        periodTx = localTx;
+      }
+
+      double income = 0;
+      double expense = 0;
+      Map<String, double> categoryTotals = {};
+
+      for (var tx in periodTx) {
+        final absAmount = tx.amount.abs().toDouble();
+        if (tx.isIncome) {
+          income += absAmount;
+        } else if (tx.type == TransactionType.expense) {
+          expense += absAmount;
+          categoryTotals[tx.category] = (categoryTotals[tx.category] ?? 0) + absAmount;
+        }
+      }
+
+      List<CategorySpendModel> localCategories = [];
+      if (expense > 0) {
+        categoryTotals.forEach((cat, amt) {
+          String emoji = '💰';
+          final lower = cat.toLowerCase();
+          if (lower.contains('makan') || lower.contains('food') || lower.contains('kuliner')) {
+            emoji = '🍔';
+          } else if (lower.contains('trans') || lower.contains('bensin') || lower.contains('car')) {
+            emoji = '🚗';
+          } else if (lower.contains('belanja') || lower.contains('shop')) {
+            emoji = '🛍️';
+          } else if (lower.contains('tagihan') || lower.contains('bill') || lower.contains('listrik')) {
+            emoji = '💡';
+          }
+
+          localCategories.add(CategorySpendModel(
+            name: cat,
+            emoji: emoji,
+            amount: amt.toInt(),
+            percentage: amt / expense,
+          ));
+        });
+        localCategories.sort((a, b) => b.amount.compareTo(a.amount));
+      }
+
+      List<double> calculatedDailySpending = List.filled(7, 0.0);
+      for (var tx in localTx) {
+        if (tx.type == TransactionType.expense) {
+          final diffDays = now.difference(tx.date).inDays;
+          if (diffDays >= 0 && diffDays < 7) {
+            final index = 6 - diffDays;
+            calculatedDailySpending[index] += (tx.amount.abs() / 1000.0);
+          }
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _monthlyData = calculatedMonthlyData;
+          _dailySpending = calculatedDailySpending;
+          _walletSummary = WalletSummaryModel(
+            totalBalance: income - expense,
+            totalIncome: income,
+            totalExpense: expense,
+            incomeChangePercentage: 0,
+            expenseChangePercentage: 0,
+          );
+          if (localCategories.isNotEmpty) {
+            _categorySpends = localCategories;
+          }
+          _isLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   @override
@@ -126,23 +298,38 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
       ),
       body: SafeArea(
         bottom: false,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
-          children: [
-            _buildHeader(),
-            const SizedBox(height: 18),
-            _buildPeriodChips(),
-            const SizedBox(height: 20),
-            _buildSummaryCards(),
-            const SizedBox(height: 24),
-            _buildBarChartCard(),
-            const SizedBox(height: 20),
-            _buildDonutChartCard(),
-            const SizedBox(height: 20),
-            _buildDailySpendingCard(),
-            const SizedBox(height: 20),
-            _buildCategoryListCard(),
-          ],
+        child: RefreshIndicator(
+          onRefresh: _loadAnalyticsData,
+          color: AppColors.accent,
+          backgroundColor: AppColors.bgCard,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
+            children: [
+              _buildHeader(),
+              const SizedBox(height: 18),
+              _buildPeriodChips(),
+              const SizedBox(height: 20),
+              if (_isLoading) ...[
+                _buildSummaryCardsSkeleton(),
+                const SizedBox(height: 24),
+                _buildBarChartSkeleton(),
+                const SizedBox(height: 20),
+                _buildDonutChartSkeleton(),
+                const SizedBox(height: 20),
+                _buildCategoryListSkeleton(),
+              ] else ...[
+                _buildSummaryCards(),
+                const SizedBox(height: 24),
+                _buildBarChartCard(),
+                const SizedBox(height: 20),
+                _buildDonutChartCard(),
+                const SizedBox(height: 20),
+                _buildDailySpendingCard(),
+                const SizedBox(height: 20),
+                _buildCategoryListCard(),
+              ],
+            ],
+          ),
         ),
       ),
     );
@@ -182,7 +369,12 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
           return Padding(
             padding: const EdgeInsets.only(right: 8),
             child: GestureDetector(
-              onTap: () => setState(() => _activePeriod = p),
+              onTap: () {
+                if (_activePeriod != p) {
+                  setState(() => _activePeriod = p);
+                  _loadAnalyticsData();
+                }
+              },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
                 padding: const EdgeInsets.symmetric(
@@ -216,6 +408,15 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   }
 
   Widget _buildSummaryCards() {
+    final incomeVal = _walletSummary != null ? _walletSummary!.totalIncome.toInt() : 0;
+    final expenseVal = _walletSummary != null ? _walletSummary!.totalExpense.toInt() : 0;
+    final incomeChange = _walletSummary != null && _walletSummary!.totalIncome > 0
+        ? '${_walletSummary!.incomeChangePercentage >= 0 ? '+' : ''}${_walletSummary!.incomeChangePercentage.toStringAsFixed(1)}%'
+        : '0%';
+    final expenseChange = _walletSummary != null && _walletSummary!.totalExpense > 0
+        ? '${_walletSummary!.expenseChangePercentage >= 0 ? '+' : ''}${_walletSummary!.expenseChangePercentage.toStringAsFixed(1)}%'
+        : '0%';
+
     return FadeTransition(
       opacity: _fadeFor(0.1, 0.45),
       child: SlideTransition(
@@ -225,8 +426,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
             Expanded(
               child: _StatCard(
                 label: 'Pemasukan',
-                value: formatRupiah(15000000),
-                change: '+12.5%',
+                value: formatRupiah(incomeVal),
+                change: incomeChange,
                 isPositive: true,
                 icon: Icons.arrow_downward_rounded,
                 color: AppColors.success,
@@ -236,8 +437,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
             Expanded(
               child: _StatCard(
                 label: 'Pengeluaran',
-                value: formatRupiah(8500000),
-                change: '+8.3%',
+                value: formatRupiah(expenseVal),
+                change: expenseChange,
                 isPositive: false,
                 icon: Icons.arrow_upward_rounded,
                 color: AppColors.error,
@@ -250,7 +451,14 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   }
 
   Widget _buildBarChartCard() {
-    final maxY = 16.0;
+    double maxVal = 1.0;
+    for (var d in _monthlyData) {
+      final inc = (d['income'] as num).toDouble();
+      final exp = (d['expense'] as num).toDouble();
+      if (inc > maxVal) maxVal = inc;
+      if (exp > maxVal) maxVal = exp;
+    }
+    final maxY = maxVal * 1.2;
 
     return FadeTransition(
       opacity: _fadeFor(0.2, 0.55),
@@ -364,6 +572,93 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
       AppColors.warning,
     ];
 
+    Widget content;
+    if (_categorySpends.isEmpty || total == 0) {
+      content = const AppEmptyState(
+        compact: true,
+        icon: Icons.pie_chart_outline_rounded,
+        title: 'Belum Ada Data Pengeluaran',
+        message: 'Grafik distribusi pengeluaran akan muncul secara otomatis di sini.',
+      );
+    } else {
+      content = Row(
+        children: [
+          Expanded(
+            flex: 5,
+            child: PieChart(
+              PieChartData(
+                sectionsSpace: 3,
+                centerSpaceRadius: 42,
+                pieTouchData: PieTouchData(
+                  touchCallback: (event, response) {
+                    setState(() {
+                      if (!event.isInterestedForInteractions ||
+                          response == null ||
+                          response.touchedSection == null) {
+                        _touchedPieIndex = -1;
+                        return;
+                      }
+                      _touchedPieIndex =
+                          response.touchedSection!.touchedSectionIndex;
+                    });
+                  },
+                ),
+                sections: List.generate(_categorySpends.length, (i) {
+                  final c = _categorySpends[i];
+                  final isTouched = i == _touchedPieIndex;
+                  final radius = isTouched ? 46.0 : 40.0;
+                  return PieChartSectionData(
+                    value: c.amount.toDouble(),
+                    color: colors[i % colors.length],
+                    radius: radius,
+                    showTitle: false,
+                  );
+                }),
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 4,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(_categorySpends.length, (i) {
+                final c = _categorySpends[i];
+                final pct = (c.amount / total * 100).toStringAsFixed(0);
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: colors[i % colors.length],
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          '${c.name} $pct%',
+                          style: const TextStyle(
+                            fontFamily: AppTextStyles.fontFamily,
+                            fontSize: 11,
+                            color: AppColors.textSecondary,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+            ),
+          ),
+        ],
+      );
+    }
+
     return FadeTransition(
       opacity: _fadeFor(0.3, 0.65),
       child: SlideTransition(
@@ -373,82 +668,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
           subtitle: 'Per kategori',
           child: SizedBox(
             height: 200,
-            child: Row(
-              children: [
-                Expanded(
-                  flex: 5,
-                  child: PieChart(
-                    PieChartData(
-                      sectionsSpace: 3,
-                      centerSpaceRadius: 42,
-                      pieTouchData: PieTouchData(
-                        touchCallback: (event, response) {
-                          setState(() {
-                            if (!event.isInterestedForInteractions ||
-                                response == null ||
-                                response.touchedSection == null) {
-                              _touchedPieIndex = -1;
-                              return;
-                            }
-                            _touchedPieIndex =
-                                response.touchedSection!.touchedSectionIndex;
-                          });
-                        },
-                      ),
-                      sections: List.generate(_categorySpends.length, (i) {
-                        final c = _categorySpends[i];
-                        final isTouched = i == _touchedPieIndex;
-                        final radius = isTouched ? 46.0 : 40.0;
-                        return PieChartSectionData(
-                          value: c.amount.toDouble(),
-                          color: colors[i % colors.length],
-                          radius: radius,
-                          showTitle: false,
-                        );
-                      }),
-                    ),
-                  ),
-                ),
-                Expanded(
-                  flex: 4,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: List.generate(_categorySpends.length, (i) {
-                      final c = _categorySpends[i];
-                      final pct = (c.amount / total * 100).toStringAsFixed(0);
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 8,
-                              height: 8,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: colors[i % colors.length],
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                '${c.name} $pct%',
-                                style: const TextStyle(
-                                  fontFamily: AppTextStyles.fontFamily,
-                                  fontSize: 11,
-                                  color: AppColors.textSecondary,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }),
-                  ),
-                ),
-              ],
-            ),
+            child: content,
           ),
         ),
       ),
@@ -456,6 +676,68 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   }
 
   Widget _buildDailySpendingCard() {
+    double maxVal = 0.0;
+    for (var val in _dailySpending) {
+      if (val > maxVal) maxVal = val;
+    }
+    final maxY = maxVal > 0 ? (maxVal * 1.3) : 100.0;
+
+    Widget content;
+    if (_dailySpending.isEmpty || maxVal == 0) {
+      content = const Center(
+        child: Text(
+          'Belum ada pengeluaran harian',
+          style: TextStyle(
+            fontFamily: AppTextStyles.fontFamily,
+            fontSize: 13,
+            color: AppColors.textMuted,
+          ),
+        ),
+      );
+    } else {
+      content = LineChart(
+        LineChartData(
+          gridData: const FlGridData(show: false),
+          borderData: FlBorderData(show: false),
+          titlesData: const FlTitlesData(show: false),
+          minY: 0,
+          maxY: maxY,
+          lineTouchData: LineTouchData(
+            touchTooltipData: LineTouchTooltipData(
+              getTooltipColor: (_) => AppColors.bgCardHover,
+              getTooltipItems: (spots) => spots.map((s) {
+                return LineTooltipItem(
+                  'Rp ${s.y.toStringAsFixed(0)}K',
+                  const TextStyle(
+                    fontFamily: AppTextStyles.fontFamily,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          lineBarsData: [
+            LineChartBarData(
+              spots: List.generate(
+                _dailySpending.length,
+                (i) => FlSpot(i.toDouble(), _dailySpending[i]),
+              ),
+              isCurved: true,
+              color: AppColors.accent,
+              barWidth: 2.5,
+              dotData: const FlDotData(show: true),
+              belowBarData: BarAreaData(
+                show: true,
+                color: AppColors.accent.withValues(alpha: 0.12),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return FadeTransition(
       opacity: _fadeFor(0.4, 0.75),
       child: SlideTransition(
@@ -465,47 +747,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
           subtitle: 'Bulan ini',
           child: SizedBox(
             height: 160,
-            child: LineChart(
-              LineChartData(
-                gridData: const FlGridData(show: false),
-                borderData: FlBorderData(show: false),
-                titlesData: const FlTitlesData(show: false),
-                minY: 0,
-                maxY: 500,
-                lineTouchData: LineTouchData(
-                  touchTooltipData: LineTouchTooltipData(
-                    getTooltipColor: (_) => AppColors.bgCardHover,
-                    getTooltipItems: (spots) => spots.map((s) {
-                      return LineTooltipItem(
-                        'Rp ${s.y.toStringAsFixed(0)}K',
-                        const TextStyle(
-                          fontFamily: AppTextStyles.fontFamily,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textPrimary,
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ),
-                lineBarsData: [
-                  LineChartBarData(
-                    spots: List.generate(
-                      _dailySpending.length,
-                      (i) => FlSpot(i.toDouble(), _dailySpending[i]),
-                    ),
-                    isCurved: true,
-                    color: AppColors.accent,
-                    barWidth: 2.5,
-                    dotData: const FlDotData(show: true),
-                    belowBarData: BarAreaData(
-                      show: true,
-                      color: AppColors.accent.withOpacity(0.12),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            child: content,
           ),
         ),
       ),
@@ -542,6 +784,186 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildSummaryCardsSkeleton() {
+    return Row(
+      children: [
+        Expanded(
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppColors.bgCard,
+              borderRadius: BorderRadius.circular(AppRadius.card),
+              border: Border.all(color: AppColors.cardBorder),
+            ),
+            child: const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    AppSkeleton(width: 70, height: 12),
+                    AppSkeleton(width: 24, height: 24, borderRadius: 6),
+                  ],
+                ),
+                SizedBox(height: 12),
+                AppSkeleton(width: 100, height: 20),
+                SizedBox(height: 8),
+                AppSkeleton(width: 60, height: 10),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppColors.bgCard,
+              borderRadius: BorderRadius.circular(AppRadius.card),
+              border: Border.all(color: AppColors.cardBorder),
+            ),
+            child: const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    AppSkeleton(width: 70, height: 12),
+                    AppSkeleton(width: 24, height: 24, borderRadius: 6),
+                  ],
+                ),
+                SizedBox(height: 12),
+                AppSkeleton(width: 100, height: 20),
+                SizedBox(height: 8),
+                AppSkeleton(width: 60, height: 10),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBarChartSkeleton() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.bgCard,
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        border: Border.all(color: AppColors.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const AppSkeleton(width: 160, height: 18),
+          const SizedBox(height: 6),
+          const AppSkeleton(width: 100, height: 12),
+          const SizedBox(height: 24),
+          SizedBox(
+            height: 140,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: List.generate(6, (i) {
+                final heights = [70.0, 110.0, 50.0, 95.0, 120.0, 85.0];
+                return Row(
+                  children: [
+                    AppSkeleton(width: 8, height: heights[i], borderRadius: 4),
+                    const SizedBox(width: 4),
+                    AppSkeleton(width: 8, height: heights[i] * 0.6, borderRadius: 4),
+                  ],
+                );
+              }),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDonutChartSkeleton() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.bgCard,
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        border: Border.all(color: AppColors.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const AppSkeleton(width: 150, height: 18),
+          const SizedBox(height: 6),
+          const AppSkeleton(width: 80, height: 12),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              const Expanded(
+                flex: 5,
+                child: Center(
+                  child: AppSkeleton(
+                    width: 90,
+                    height: 90,
+                    borderRadius: 45,
+                  ),
+                ),
+              ),
+              Expanded(
+                flex: 4,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: List.generate(3, (_) => const Padding(
+                    padding: EdgeInsets.only(bottom: 12),
+                    child: AppSkeleton(width: 90, height: 12),
+                  )),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCategoryListSkeleton() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.bgCard,
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        border: Border.all(color: AppColors.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const AppSkeleton(width: 140, height: 18),
+          const SizedBox(height: 16),
+          ...List.generate(3, (_) => const Padding(
+            padding: EdgeInsets.only(bottom: 14),
+            child: Row(
+              children: [
+                AppSkeleton(width: 36, height: 36, borderRadius: 10),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      AppSkeleton(width: 100, height: 14),
+                      SizedBox(height: 6),
+                      AppSkeleton(width: 130, height: 8),
+                    ],
+                  ),
+                ),
+                SizedBox(width: 12),
+                AppSkeleton(width: 60, height: 14),
+              ],
+            ),
+          )),
+        ],
       ),
     );
   }
@@ -613,11 +1035,13 @@ class _StatCard extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            '$change dari bulan lalu',
+            change == '0%' ? 'Belum ada data transaksi' : '$change dari bulan lalu',
             style: TextStyle(
               fontFamily: AppTextStyles.fontFamily,
               fontSize: 10,
-              color: isPositive ? AppColors.success : AppColors.error,
+              color: change == '0%'
+                  ? AppColors.textMuted
+                  : (isPositive ? AppColors.success : AppColors.error),
             ),
           ),
         ],

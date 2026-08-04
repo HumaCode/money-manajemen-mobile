@@ -1,4 +1,19 @@
-String formatRupiah(num amount) => 'Rp ${amount.toStringAsFixed(0)}';
+String formatRupiah(num amount) {
+  final isNegative = amount < 0;
+  final absAmount = amount.abs().toInt();
+  final str = absAmount.toString();
+
+  final buffer = StringBuffer();
+  for (int i = 0; i < str.length; i++) {
+    if (i > 0 && (str.length - i) % 3 == 0) {
+      buffer.write('.');
+    }
+    buffer.write(str[i]);
+  }
+
+  final formatted = buffer.toString();
+  return isNegative ? '-Rp $formatted' : 'Rp $formatted';
+}
 
 const List<String> _monthsIndo = [
   'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',

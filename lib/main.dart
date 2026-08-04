@@ -38,7 +38,7 @@ class MoneyFlowApp extends StatelessWidget {
         ),
       ],
       child: MaterialApp(
-        title: 'MoneyFlow',
+        title: 'Money Manajemen',
         debugShowCheckedModeBanner: false,
         theme: moneyFlowTheme,
         home: const SplashScreen(),

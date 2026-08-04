@@ -91,6 +91,7 @@ class DatabaseHelper {
   // ---- Accounts Operations ----
   Future<void> insertOrUpdateAccounts(List<AccountModel> accounts) async {
     final db = await instance.database;
+    await db.delete('accounts');
     final batch = db.batch();
     for (final acc in accounts) {
       batch.insert(

@@ -1,13 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:money_manajemen/app/theme/app_theme.dart';
+import 'package:money_manajemen/core/widgets/app_skeleton.dart';
 import 'package:money_manajemen/core/widgets/app_bottom_nav.dart';
+import 'package:money_manajemen/core/widgets/app_empty_state.dart';
 import 'package:money_manajemen/core/widgets/dynamic_island_toast.dart';
+import 'package:money_manajemen/core/services/biometric_service.dart';
+import 'package:money_manajemen/features/dashboard/presentation/widgets/notification_sheet.dart';
 import 'package:money_manajemen/features/transactions/presentation/pages/transactions_screen.dart';
 import 'package:money_manajemen/features/analytics/presentation/pages/analytics_screen.dart';
 import 'package:money_manajemen/features/profile/presentation/pages/profile_screen.dart';
+import 'package:money_manajemen/features/auth/presentation/pages/login_screen.dart';
 import 'package:money_manajemen/features/auth/data/datasources/auth_local_data_source.dart';
 import 'package:money_manajemen/features/auth/data/models/user_model.dart';
 import 'package:money_manajemen/features/transactions/presentation/widgets/add_transaction_sheet.dart';
+import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
+import 'package:money_manajemen/features/transactions/data/services/receipt_scanner_service.dart';
+import 'package:money_manajemen/features/transactions/data/models/transaction_model.dart';
+import 'package:money_manajemen/features/transactions/data/models/account_model.dart';
+import 'package:money_manajemen/features/transactions/data/datasources/transaction_remote_data_source.dart';
+import 'package:money_manajemen/features/transactions/data/datasources/master_remote_data_source.dart';
+import 'package:money_manajemen/core/database/database_helper.dart';
+import 'package:money_manajemen/core/utils/formatters.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -38,6 +52,254 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   UserDetail? _user;
 
+  bool _isLoading = true;
+  int _totalBalance = 0;
+  int _totalIncome = 0;
+  int _totalExpense = 0;
+  List<_CategorySpend> _categorySpends = [];
+  List<_TransactionItem> _transactions = [];
+  List<AccountModel> _accounts = [];
+
+  List<NotificationItem> _notifications = [];
+
+  bool get _hasUnreadNotifications => _notifications.any((n) => !n.isRead);
+
+  void _openNotifications() {
+    NotificationSheet.show(
+      context,
+      notifications: _notifications,
+      onAllRead: () {
+        setState(() {
+          for (var n in _notifications) {
+            n.isRead = true;
+          }
+        });
+      },
+    );
+  }
+
+  Future<void> _handleLogout() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Container(
+          padding: const EdgeInsets.all(22),
+          decoration: BoxDecoration(
+            color: AppColors.bgCard,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: AppColors.cardBorder),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 54,
+                height: 54,
+                decoration: BoxDecoration(
+                  color: AppColors.error.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.logout_rounded,
+                  color: AppColors.error,
+                  size: 26,
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Keluar dari Akun?',
+                style: TextStyle(
+                  fontFamily: AppTextStyles.fontFamily,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Kamu perlu login kembali untuk mengakses akunmu.',
+                textAlign: TextAlign.center,
+                style: AppTextStyles.tagline,
+              ),
+              const SizedBox(height: 22),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.of(context).pop(false),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                        side: const BorderSide(color: AppColors.cardBorder),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(AppRadius.button),
+                        ),
+                      ),
+                      child: const Text(
+                        'Batal',
+                        style: TextStyle(
+                          fontFamily: AppTextStyles.fontFamily,
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.of(context).pop(true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.error,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(AppRadius.button),
+                        ),
+                      ),
+                      child: const Text(
+                        'Keluar',
+                        style: TextStyle(
+                          fontFamily: AppTextStyles.fontFamily,
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      await AuthLocalDataSourceImpl().clearToken();
+      if (!mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        (route) => false,
+      );
+    }
+  }
+
+  void _openUserMenuSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.all(24),
+        decoration: const BoxDecoration(
+          color: AppColors.bgCard,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          border: Border(top: BorderSide(color: AppColors.cardBorder)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.textSecondary.withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Container(
+                  width: 50,
+                  height: 50,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: AppColors.accentGradient,
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    _userInitials,
+                    style: const TextStyle(
+                      fontFamily: AppTextStyles.fontFamily,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.bgDeep,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _userName,
+                        style: const TextStyle(
+                          fontFamily: AppTextStyles.fontFamily,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _user?.email ?? 'Pengguna Money Management',
+                        style: AppTextStyles.tagline,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            ListTile(
+              onTap: () {
+                Navigator.pop(ctx);
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const ProfileScreen()),
+                );
+              },
+              leading: const Icon(Icons.person_outline_rounded, color: AppColors.info),
+              title: const Text(
+                'Lihat / Edit Profil',
+                style: TextStyle(
+                  fontFamily: AppTextStyles.fontFamily,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.textSecondary),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              tileColor: AppColors.bgInput.withValues(alpha: 0.4),
+            ),
+            const SizedBox(height: 10),
+            ListTile(
+              onTap: () {
+                Navigator.pop(ctx);
+                _handleLogout();
+              },
+              leading: const Icon(Icons.logout_rounded, color: AppColors.error),
+              title: const Text(
+                'Keluar dari Akun (Logout)',
+                style: TextStyle(
+                  fontFamily: AppTextStyles.fontFamily,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.error,
+                ),
+              ),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              tileColor: AppColors.error.withValues(alpha: 0.1),
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -47,6 +309,172 @@ class _DashboardScreenState extends State<DashboardScreen>
     )..forward();
 
     _loadUser();
+    _loadDashboardData();
+  }
+
+  Future<void> _loadDashboardData({bool showLoading = true}) async {
+    if (showLoading && _isLoading == false && _accounts.isEmpty) {
+      setState(() => _isLoading = true);
+    }
+
+    // 1. Immediately render offline local data from SQLite
+    await _renderLocalDashboardState();
+
+    // 2. Silently sync latest data from Web API in background
+    _syncBackgroundData();
+  }
+
+  Future<void> _renderLocalDashboardState() async {
+    final localAccounts = await DatabaseHelper.instance.getAccounts();
+    final localTx = await DatabaseHelper.instance.getTransactions();
+
+    int income = 0;
+    int expense = 0;
+    Map<String, int> categoryTotals = {};
+
+    for (var tx in localTx) {
+      final absAmount = tx.amount.abs();
+      if (tx.isIncome) {
+        income += absAmount;
+      } else if (tx.type == TransactionType.expense) {
+        expense += absAmount;
+        categoryTotals[tx.category] = (categoryTotals[tx.category] ?? 0) + absAmount;
+      }
+    }
+
+    List<_CategorySpend> categories = [];
+    if (expense > 0) {
+      categoryTotals.forEach((cat, amt) {
+        String emoji = '💰';
+        final lower = cat.toLowerCase();
+        if (lower.contains('makan') || lower.contains('food') || lower.contains('kuliner')) {
+          emoji = '🍔';
+        } else if (lower.contains('trans') || lower.contains('bensin') || lower.contains('car')) {
+          emoji = '🚗';
+        } else if (lower.contains('belanja') || lower.contains('shop')) {
+          emoji = '🛍️';
+        } else if (lower.contains('tagihan') || lower.contains('bill') || lower.contains('listrik')) {
+          emoji = '💡';
+        }
+
+        categories.add(_CategorySpend(cat, emoji, amt, amt / expense));
+      });
+      categories.sort((a, b) => b.amount.compareTo(a.amount));
+    }
+
+    List<_TransactionItem> recentList = localTx.take(5).map((tx) {
+      return _TransactionItem(
+        tx.title,
+        tx.category,
+        'Hari ini',
+        tx.amount,
+        tx.isIncome,
+        tx.icon,
+        tx.color,
+      );
+    }).toList();
+
+    int baseAccountsBalance = 0;
+    for (var acc in localAccounts) {
+      baseAccountsBalance += acc.balance;
+    }
+
+    int netTotalBalance = baseAccountsBalance + income - expense;
+
+    final isBioEnabled = await BiometricService.isBiometricEnabled();
+    List<NotificationItem> dynamicNotifs = [];
+
+    if (localAccounts.isNotEmpty) {
+      final accSummary = localAccounts.map((a) => '${a.name} (${formatRupiah(a.balance)})').join(' & ');
+      dynamicNotifs.add(
+        NotificationItem(
+          id: 'acc_sync',
+          title: 'Sinkronisasi Rekening',
+          message: 'Saldo akun $accSummary tersimpan aman di SQLite lokal.',
+          time: DateTime.now().subtract(const Duration(minutes: 5)),
+          icon: Icons.account_balance_wallet_rounded,
+          iconColor: AppColors.success,
+          isRead: false,
+        ),
+      );
+    }
+
+    if (categories.isNotEmpty) {
+      final topCat = categories.first;
+      final percent = expense > 0 ? ((topCat.amount / expense) * 100).toInt() : 0;
+      dynamicNotifs.add(
+        NotificationItem(
+          id: 'budget_analysis',
+          title: 'Analisis Pengeluaran Real',
+          message: 'Pengeluaran terbesar pada "${topCat.name}" sebesar ${formatRupiah(topCat.amount)} ($percent% dari total pengeluaran).',
+          time: DateTime.now().subtract(const Duration(hours: 1)),
+          icon: Icons.pie_chart_outline_rounded,
+          iconColor: AppColors.warning,
+          isRead: false,
+        ),
+      );
+    } else {
+      dynamicNotifs.add(
+        NotificationItem(
+          id: 'budget_analysis',
+          title: 'Perkembangan Anggaran',
+          message: 'Belum ada transaksi pengeluaran hari ini. Kelola dan pertahankan kontrol keuanganmu!',
+          time: DateTime.now().subtract(const Duration(hours: 1)),
+          icon: Icons.pie_chart_outline_rounded,
+          iconColor: AppColors.info,
+          isRead: true,
+        ),
+      );
+    }
+
+    dynamicNotifs.add(
+      NotificationItem(
+        id: 'bio_security',
+        title: 'Status Keamanan Akun',
+        message: isBioEnabled
+            ? 'Fitur login biometrik sidik jari (Biometric Auth) telah aktif pada perangkat ini.'
+            : 'Login biometrik sidik jari sedang nonaktif. Aktifkan di Profil untuk login cepat.',
+        time: DateTime.now().subtract(const Duration(hours: 3)),
+        icon: Icons.fingerprint_rounded,
+        iconColor: isBioEnabled ? AppColors.accent : AppColors.textSecondary,
+        isRead: isBioEnabled,
+      ),
+    );
+
+    if (mounted) {
+      setState(() {
+        _accounts = localAccounts;
+        _totalIncome = income;
+        _totalExpense = expense;
+        _totalBalance = netTotalBalance;
+        _categorySpends = categories;
+        _transactions = recentList;
+        _notifications = dynamicNotifs;
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _syncBackgroundData() async {
+    try {
+      final txRemoteDS = TransactionRemoteDataSourceImpl(
+        client: http.Client(),
+        localDataSource: AuthLocalDataSourceImpl(),
+      );
+      await txRemoteDS.getTransactions();
+
+      final masterDS = MasterRemoteDataSourceImpl(
+        client: http.Client(),
+        localDataSource: AuthLocalDataSourceImpl(),
+      );
+      await masterDS.getAccounts();
+
+      if (mounted) {
+        await _renderLocalDashboardState();
+      }
+    } catch (_) {
+      // Offline mode fallback: keep rendered SQLite local state
+    }
   }
 
   Future<void> _loadUser() async {
@@ -70,57 +498,11 @@ class _DashboardScreenState extends State<DashboardScreen>
     super.dispose();
   }
 
-  // ---- Dummy data (replace with real API data) ----
   final List<_QuickAction> _quickActions = const [
     _QuickAction('Income', Icons.arrow_downward_rounded, AppColors.success),
     _QuickAction('Expense', Icons.arrow_upward_rounded, AppColors.error),
     _QuickAction('Transfer', Icons.swap_horiz_rounded, AppColors.info),
     _QuickAction('Budget', Icons.pie_chart_rounded, AppColors.purple),
-  ];
-
-  final List<_CategorySpend> _categorySpends = const [
-    _CategorySpend('Makanan', '🍔', 3200000, 0.85),
-    _CategorySpend('Transportasi', '🚗', 2100000, 0.65),
-    _CategorySpend('Belanja', '🛍️', 1800000, 0.50),
-  ];
-
-  final List<_TransactionItem> _transactions = const [
-    _TransactionItem(
-      'Gaji Bulanan',
-      'Income',
-      'Hari ini',
-      15000000,
-      true,
-      Icons.work_rounded,
-      AppColors.success,
-    ),
-    _TransactionItem(
-      'Makan Siang',
-      'Food & Dining',
-      'Hari ini',
-      -85000,
-      false,
-      Icons.restaurant_rounded,
-      AppColors.warning,
-    ),
-    _TransactionItem(
-      'Bensin Motor',
-      'Transportation',
-      'Kemarin',
-      -50000,
-      false,
-      Icons.local_gas_station_rounded,
-      AppColors.info,
-    ),
-    _TransactionItem(
-      'Belanja Bulanan',
-      'Shopping',
-      'Kemarin',
-      -320000,
-      false,
-      Icons.shopping_bag_rounded,
-      AppColors.purple,
-    ),
   ];
 
   @override
@@ -179,13 +561,13 @@ class _DashboardScreenState extends State<DashboardScreen>
                   children: [
                     _buildHeader(),
                     const SizedBox(height: 20),
-                    _buildBalanceCard(),
+                    _isLoading ? _buildBalanceCardSkeleton() : _buildBalanceCard(),
                     const SizedBox(height: 24),
                     _buildQuickActions(),
                     const SizedBox(height: 28),
-                    _buildBudgetOverview(),
+                    _isLoading ? _buildBudgetOverviewSkeleton() : _buildBudgetOverview(),
                     const SizedBox(height: 28),
-                    _buildRecentTransactions(),
+                    _isLoading ? _buildRecentTransactionsSkeleton() : _buildRecentTransactions(),
                   ],
                 ),
               ),
@@ -217,17 +599,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           color: Colors.transparent,
           child: InkWell(
             customBorder: const CircleBorder(),
-            onTap: () async {
-              final newTx = await AddTransactionSheet.show(context);
-              if (newTx != null && mounted) {
-                DynamicIslandToast.show(
-                  context,
-                  title: 'Transaksi Berhasil',
-                  message: 'Transaksi baru berhasil ditambahkan',
-                  type: DynamicToastType.success,
-                );
-              }
-            },
+            onTap: _handleScanReceipt,
             child: const Icon(
               Icons.qr_code_scanner_rounded,
               color: AppColors.bgDeep,
@@ -237,6 +609,161 @@ class _DashboardScreenState extends State<DashboardScreen>
         ),
       ),
     );
+  }
+
+  Future<void> _handleScanReceipt() async {
+    final picker = ImagePicker();
+
+    final ImageSource? source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.all(24),
+        decoration: const BoxDecoration(
+          color: AppColors.bgCard,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.cardBorder,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
+            const Text(
+              'Pindai Struk dengan AI Gemini',
+              style: TextStyle(
+                fontFamily: AppTextStyles.fontFamily,
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Pilih sumber foto nota/struk belanja Anda',
+              style: TextStyle(
+                fontFamily: AppTextStyles.fontFamily,
+                fontSize: 12,
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 20),
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.accent.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.camera_alt_rounded, color: AppColors.accent),
+              ),
+              title: const Text(
+                'Kamera (Scan Struk)',
+                style: TextStyle(
+                  fontFamily: AppTextStyles.fontFamily,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              subtitle: const Text('Ambil foto struk langsung', style: TextStyle(fontSize: 11.5, color: AppColors.textMuted)),
+              onTap: () => Navigator.pop(ctx, ImageSource.camera),
+            ),
+            const SizedBox(height: 8),
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.info.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.photo_library_rounded, color: AppColors.info),
+              ),
+              title: const Text(
+                'Galeri Foto',
+                style: TextStyle(
+                  fontFamily: AppTextStyles.fontFamily,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              subtitle: const Text('Pilih foto struk dari galeri', style: TextStyle(fontSize: 11.5, color: AppColors.textMuted)),
+              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+            ),
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
+    );
+
+    if (source == null) return;
+
+    final image = await picker.pickImage(source: source);
+    if (image == null || !mounted) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => Center(
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: AppColors.bgCard,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.cardBorder),
+          ),
+          child: const Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(color: AppColors.accent),
+              SizedBox(height: 16),
+              Text(
+                'Memindai Struk dengan AI Gemini...',
+                style: TextStyle(
+                  fontFamily: AppTextStyles.fontFamily,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    final scanResult = await ReceiptScannerService.scanReceipt(image);
+
+    if (mounted) {
+      Navigator.pop(context);
+    }
+
+    if (scanResult != null && mounted) {
+      DynamicIslandToast.show(
+        context,
+        title: 'Hasil Pindai AI Gemini',
+        message: 'Data struk berhasil dibaca otomatis oleh AI',
+        type: DynamicToastType.success,
+      );
+
+      final newTx = await AddTransactionSheet.show(
+        context,
+        initialTitle: scanResult.title,
+        initialAmount: scanResult.amount,
+      );
+
+      if (newTx != null && mounted) {
+        _loadDashboardData();
+      }
+    }
   }
 
   Widget _buildHeader() {
@@ -264,73 +791,82 @@ class _DashboardScreenState extends State<DashboardScreen>
                 ],
               ),
             ),
-            Stack(
-              children: [
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    color: AppColors.bgInput,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: AppColors.cardBorder),
-                  ),
-                  child: const Icon(
-                    Icons.notifications_none_rounded,
-                    color: AppColors.textPrimary,
-                    size: 20,
-                  ),
-                ),
-                Positioned(
-                  right: 8,
-                  top: 8,
-                  child: Container(
-                    width: 8,
-                    height: 8,
-                    decoration: const BoxDecoration(
-                      color: AppColors.error,
+            GestureDetector(
+              onTap: _openNotifications,
+              behavior: HitTestBehavior.opaque,
+              child: Stack(
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: AppColors.bgInput,
                       shape: BoxShape.circle,
+                      border: Border.all(color: AppColors.cardBorder),
+                    ),
+                    child: const Icon(
+                      Icons.notifications_none_rounded,
+                      color: AppColors.textPrimary,
+                      size: 20,
                     ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(width: 10),
-            Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: AppColors.accentGradient,
-              ),
-              alignment: Alignment.center,
-              child: _user?.avatar != null && _user!.avatar!.isNotEmpty
-                  ? ClipRRect(
-                      borderRadius: BorderRadius.circular(21),
-                      child: Image.network(
-                        _user!.avatar!,
-                        width: 42,
-                        height: 42,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Text(
-                          _userInitials,
-                          style: const TextStyle(
-                            fontFamily: AppTextStyles.fontFamily,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.bgDeep,
-                            fontSize: 14,
-                          ),
+                  if (_hasUnreadNotifications)
+                    Positioned(
+                      right: 8,
+                      top: 8,
+                      child: Container(
+                        width: 8,
+                        height: 8,
+                        decoration: const BoxDecoration(
+                          color: AppColors.error,
+                          shape: BoxShape.circle,
                         ),
                       ),
-                    )
-                  : Text(
-                      _userInitials,
-                      style: const TextStyle(
-                        fontFamily: AppTextStyles.fontFamily,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.bgDeep,
-                        fontSize: 14,
-                      ),
                     ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            GestureDetector(
+              onTap: _openUserMenuSheet,
+              behavior: HitTestBehavior.opaque,
+              child: Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: AppColors.accentGradient,
+                ),
+                alignment: Alignment.center,
+                child: _user?.avatar != null && _user!.avatar!.isNotEmpty
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(21),
+                        child: Image.network(
+                          _user!.avatar!,
+                          width: 42,
+                          height: 42,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Text(
+                            _userInitials,
+                            style: const TextStyle(
+                              fontFamily: AppTextStyles.fontFamily,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.bgDeep,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      )
+                    : Text(
+                        _userInitials,
+                        style: const TextStyle(
+                          fontFamily: AppTextStyles.fontFamily,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.bgDeep,
+                          fontSize: 14,
+                        ),
+                      ),
+              ),
             ),
           ],
         ),
@@ -365,36 +901,67 @@ class _DashboardScreenState extends State<DashboardScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  const Text('Total Saldo', style: AppTextStyles.tagline),
-                  const SizedBox(width: 8),
-                  GestureDetector(
-                    onTap: () =>
-                        setState(() => _balanceVisible = !_balanceVisible),
-                    child: Icon(
-                      _balanceVisible
-                          ? Icons.visibility_outlined
-                          : Icons.visibility_off_outlined,
-                      size: 16,
-                      color: AppColors.textSecondary,
+              GestureDetector(
+                onTap: () => _showAccountDetailsModal(context),
+                behavior: HitTestBehavior.opaque,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Text('Total Saldo', style: AppTextStyles.tagline),
+                        const SizedBox(width: 6),
+                        const Icon(Icons.info_outline_rounded, size: 14, color: AppColors.accent),
+                        const Spacer(),
+                        GestureDetector(
+                          onTap: () async {
+                            DynamicIslandToast.show(
+                              context,
+                              title: 'Menyinkronkan Data',
+                              message: 'Memperbarui data akun & saldo dari server...',
+                              type: DynamicToastType.info,
+                            );
+                            await _loadDashboardData();
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            child: const Icon(
+                              Icons.refresh_rounded,
+                              size: 19,
+                              color: AppColors.accent,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        GestureDetector(
+                          onTap: () =>
+                              setState(() => _balanceVisible = !_balanceVisible),
+                          child: Icon(
+                            _balanceVisible
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
+                            size: 18,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 250),
-                child: Text(
-                  _balanceVisible ? 'Rp 12.450.000' : 'Rp ••••••••',
-                  key: ValueKey(_balanceVisible),
-                  style: const TextStyle(
-                    fontFamily: AppTextStyles.fontFamily,
-                    fontSize: 30,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary,
-                    letterSpacing: 0.3,
-                  ),
+                    const SizedBox(height: 8),
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 250),
+                      child: Text(
+                        _balanceVisible ? formatRupiah(_totalBalance) : 'Rp ••••••••',
+                        key: ValueKey(_balanceVisible),
+                        style: const TextStyle(
+                          fontFamily: AppTextStyles.fontFamily,
+                          fontSize: 30,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 20),
@@ -404,7 +971,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                     child: _MiniStat(
                       icon: Icons.arrow_downward_rounded,
                       label: 'Pemasukan',
-                      value: 'Rp 15.000.000',
+                      value: formatRupiah(_totalIncome),
                       color: AppColors.success,
                     ),
                   ),
@@ -413,7 +980,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                     child: _MiniStat(
                       icon: Icons.arrow_upward_rounded,
                       label: 'Pengeluaran',
-                      value: 'Rp 8.500.000',
+                      value: formatRupiah(_totalExpense),
                       color: AppColors.error,
                       alignEnd: true,
                     ),
@@ -424,6 +991,102 @@ class _DashboardScreenState extends State<DashboardScreen>
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildBalanceCardSkeleton() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: AppColors.bgCard,
+        borderRadius: BorderRadius.circular(AppRadius.card + 2),
+        border: Border.all(color: AppColors.cardBorder),
+      ),
+      child: const Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AppSkeleton(width: 90, height: 14),
+          SizedBox(height: 12),
+          AppSkeleton(width: 180, height: 32),
+          SizedBox(height: 24),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    AppSkeleton(width: 70, height: 12),
+                    SizedBox(height: 6),
+                    AppSkeleton(width: 110, height: 16),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    AppSkeleton(width: 70, height: 12),
+                    SizedBox(height: 6),
+                    AppSkeleton(width: 110, height: 16),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBudgetOverviewSkeleton() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.bgCard,
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        border: Border.all(color: AppColors.cardBorder),
+      ),
+      child: const Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              AppSkeleton(width: 150, height: 16),
+              AppSkeleton(width: 60, height: 14),
+            ],
+          ),
+          SizedBox(height: 16),
+          AppSkeleton(width: double.infinity, height: 36),
+          SizedBox(height: 10),
+          AppSkeleton(width: double.infinity, height: 36),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRecentTransactionsSkeleton() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            AppSkeleton(width: 140, height: 16),
+            AppSkeleton(width: 60, height: 14),
+          ],
+        ),
+        const SizedBox(height: 12),
+        ...List.generate(
+          3,
+          (_) => const Padding(
+            padding: EdgeInsets.only(bottom: 10),
+            child: AppSkeleton(width: double.infinity, height: 60),
+          ),
+        ),
+      ],
     );
   }
 
@@ -485,7 +1148,15 @@ class _DashboardScreenState extends State<DashboardScreen>
                 ],
               ),
               const SizedBox(height: 16),
-              ..._categorySpends.map((c) => _CategoryRow(item: c)),
+              if (_categorySpends.isEmpty)
+                const AppEmptyState(
+                  compact: true,
+                  icon: Icons.pie_chart_outline_rounded,
+                  title: 'Belum Ada Pengeluaran',
+                  message: 'Rincian pengeluaran per kategori akan muncul secara otomatis di sini.',
+                )
+              else
+                ..._categorySpends.map((c) => _CategoryRow(item: c)),
             ],
           ),
         ),
@@ -528,10 +1199,205 @@ class _DashboardScreenState extends State<DashboardScreen>
               ],
             ),
             const SizedBox(height: 12),
-            ..._transactions.map((t) => _TransactionTile(item: t)),
+            if (_transactions.isEmpty)
+              AppEmptyState(
+                icon: Icons.receipt_long_rounded,
+                title: 'Belum Ada Transaksi',
+                message: 'Catatan transaksimu masih kosong. Gunakan tombol + di bawah atau scan struk AI untuk mulai mencatat!',
+                buttonText: 'Pindai Struk AI',
+                onButtonPressed: _handleScanReceipt,
+              )
+            else
+              ..._transactions.map((t) => _TransactionTile(item: t)),
           ],
         ),
       ),
+    );
+  }
+
+  void _showAccountDetailsModal(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return Container(
+          padding: const EdgeInsets.all(24),
+          decoration: const BoxDecoration(
+            color: AppColors.bgCard,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.cardBorder,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.accent.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.account_balance_wallet_rounded,
+                      color: AppColors.accent,
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Rincian Saldo Akun',
+                        style: TextStyle(
+                          fontFamily: AppTextStyles.fontFamily,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        'Detail saldo seluruh rekening & akun',
+                        style: TextStyle(
+                          fontFamily: AppTextStyles.fontFamily,
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              const Divider(color: AppColors.cardBorder, height: 1),
+              const SizedBox(height: 16),
+              if (_accounts.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                  child: Center(
+                    child: Text(
+                      'Belum ada akun/rekening terdaftar',
+                      style: TextStyle(
+                        fontFamily: AppTextStyles.fontFamily,
+                        fontSize: 13,
+                        color: AppColors.textMuted,
+                      ),
+                    ),
+                  ),
+                )
+              else
+                ..._accounts.map((acc) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: AppColors.bgInput,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.cardBorder),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 38,
+                            height: 38,
+                            decoration: BoxDecoration(
+                              color: AppColors.info.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(
+                              Icons.account_balance_rounded,
+                              color: AppColors.info,
+                              size: 18,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  acc.name,
+                                  style: const TextStyle(
+                                    fontFamily: AppTextStyles.fontFamily,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.textPrimary,
+                                  ),
+                                ),
+                                if (acc.accountNumber.isNotEmpty) ...[
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    acc.accountNumber,
+                                    style: const TextStyle(
+                                      fontFamily: AppTextStyles.fontFamily,
+                                      fontSize: 11,
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                          Text(
+                            formatRupiah(acc.balance),
+                            style: const TextStyle(
+                              fontFamily: AppTextStyles.fontFamily,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.accent,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }),
+              const SizedBox(height: 8),
+              const Divider(color: AppColors.cardBorder, height: 1),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Total Saldo (Keseluruhan)',
+                    style: TextStyle(
+                      fontFamily: AppTextStyles.fontFamily,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  Text(
+                    formatRupiah(_totalBalance),
+                    style: const TextStyle(
+                      fontFamily: AppTextStyles.fontFamily,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        );
+      },
     );
   }
 }

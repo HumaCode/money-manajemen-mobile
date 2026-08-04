@@ -58,12 +58,19 @@ class MasterRemoteDataSourceImpl implements MasterRemoteDataSource {
       final Map<String, dynamic> responseJson = jsonDecode(response.body);
 
       if (response.statusCode == 200 && responseJson['data'] != null) {
-        final list = responseJson['data'] as List;
-        final categories = list.map((item) => CategoryModel.fromJson(item as Map<String, dynamic>)).toList();
-        if (categories.isNotEmpty) {
-          await DatabaseHelper.instance.insertOrUpdateCategories(categories);
+        dynamic rawList = responseJson['data'];
+        if (rawList is Map && rawList['data'] is List) {
+          rawList = rawList['data'];
         }
-        return categories;
+        if (rawList is List) {
+          final categories = rawList
+              .map((item) => CategoryModel.fromJson(item as Map<String, dynamic>))
+              .toList();
+          if (categories.isNotEmpty) {
+            await DatabaseHelper.instance.insertOrUpdateCategories(categories);
+          }
+          return categories;
+        }
       }
       return getCachedCategories();
     } catch (_) {
@@ -93,12 +100,19 @@ class MasterRemoteDataSourceImpl implements MasterRemoteDataSource {
       final Map<String, dynamic> responseJson = jsonDecode(response.body);
 
       if (response.statusCode == 200 && responseJson['data'] != null) {
-        final list = responseJson['data'] as List;
-        final accounts = list.map((item) => AccountModel.fromJson(item as Map<String, dynamic>)).toList();
-        if (accounts.isNotEmpty) {
-          await DatabaseHelper.instance.insertOrUpdateAccounts(accounts);
+        dynamic rawList = responseJson['data'];
+        if (rawList is Map && rawList['data'] is List) {
+          rawList = rawList['data'];
         }
-        return accounts;
+        if (rawList is List) {
+          final accounts = rawList
+              .map((item) => AccountModel.fromJson(item as Map<String, dynamic>))
+              .toList();
+          if (accounts.isNotEmpty) {
+            await DatabaseHelper.instance.insertOrUpdateAccounts(accounts);
+          }
+          return accounts;
+        }
       }
       return getCachedAccounts();
     } catch (_) {

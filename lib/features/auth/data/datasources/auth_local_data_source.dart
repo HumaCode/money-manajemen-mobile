@@ -8,16 +8,20 @@ abstract class AuthLocalDataSource {
   Future<void> clearToken();
   Future<void> saveUser(UserDetail user);
   Future<UserDetail?> getUser();
+  Future<void> saveBiometricToken(String token);
+  Future<String?> getBiometricToken();
 }
 
 class AuthLocalDataSourceImpl implements AuthLocalDataSource {
   static const String _tokenKey = 'AUTH_TOKEN';
   static const String _userKey = 'AUTH_USER';
+  static const String _biometricTokenKey = 'BIOMETRIC_SAVED_TOKEN';
 
   @override
   Future<void> saveToken(String token) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_tokenKey, token);
+    await prefs.setString(_biometricTokenKey, token);
   }
 
   @override
@@ -27,10 +31,21 @@ class AuthLocalDataSourceImpl implements AuthLocalDataSource {
   }
 
   @override
+  Future<void> saveBiometricToken(String token) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_biometricTokenKey, token);
+  }
+
+  @override
+  Future<String?> getBiometricToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_biometricTokenKey);
+  }
+
+  @override
   Future<void> clearToken() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_tokenKey);
-    await prefs.remove(_userKey);
   }
 
   @override

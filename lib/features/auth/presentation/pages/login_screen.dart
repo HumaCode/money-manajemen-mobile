@@ -10,6 +10,8 @@ import 'package:money_manajemen/features/auth/presentation/bloc/auth_state.dart'
 import 'package:money_manajemen/features/dashboard/presentation/pages/dashboard_screen.dart';
 import 'register_screen.dart';
 
+import 'package:money_manajemen/core/services/biometric_service.dart';
+import 'package:money_manajemen/features/auth/data/datasources/auth_local_data_source.dart';
 import 'package:money_manajemen/core/widgets/dynamic_island_toast.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -26,6 +28,7 @@ class _LoginScreenState extends State<LoginScreen>
 
   late final AnimationController _entrance;
   bool _rememberMe = false;
+  bool _biometricAvailable = false;
 
   Animation<double> _fadeFor(double start, double end) => CurvedAnimation(
     parent: _entrance,
@@ -47,6 +50,67 @@ class _LoginScreenState extends State<LoginScreen>
       vsync: this,
       duration: const Duration(milliseconds: 1100),
     )..forward();
+
+    _checkBiometricStatus();
+  }
+
+  Future<void> _checkBiometricStatus() async {
+    final isHardwareAvailable = await BiometricService.isBiometricAvailable();
+    if (mounted) {
+      setState(() => _biometricAvailable = isHardwareAvailable || true);
+    }
+  }
+
+  Future<void> _handleBiometricLogin() async {
+    final isEnabled = await BiometricService.isBiometricEnabled();
+    if (!isEnabled) {
+      if (!mounted) return;
+      DynamicIslandToast.show(
+        context,
+        title: 'Biometrik Tidak Aktif',
+        message: 'Aktifkan fitur Login Sidik Jari di menu Pengaturan Profil terlebih dahulu.',
+        type: DynamicToastType.warning,
+      );
+      return;
+    }
+
+    final authenticated = await BiometricService.authenticate(
+      reason: 'Pindai sidik jari Anda untuk login',
+    );
+    if (authenticated && mounted) {
+      final authDS = AuthLocalDataSourceImpl();
+      String? token = await authDS.getToken();
+      token ??= await authDS.getBiometricToken();
+
+      if (token != null && token.isNotEmpty) {
+        await authDS.saveToken(token);
+        if (!mounted) return;
+
+        DynamicIslandToast.show(
+          context,
+          title: 'Login Sidik Jari Berhasil',
+          message: 'Selamat datang kembali!',
+          type: DynamicToastType.success,
+        );
+
+        Navigator.of(context).pushReplacement(
+          PageRouteBuilder(
+            transitionDuration: const Duration(milliseconds: 500),
+            pageBuilder: (_, animation, __) => FadeTransition(
+              opacity: animation,
+              child: const DashboardScreen(),
+            ),
+          ),
+        );
+      } else {
+        DynamicIslandToast.show(
+          context,
+          title: 'Sesi Belum Tersimpan',
+          message: 'Silakan masuk dengan Username & Password sekali terlebih dahulu',
+          type: DynamicToastType.info,
+        );
+      }
+    }
   }
 
   @override
@@ -283,15 +347,41 @@ class _LoginScreenState extends State<LoginScreen>
 
                         const SizedBox(height: 28),
 
-                        // Login button
+                        // Login button + Biometric button
                         FadeTransition(
                           opacity: _fadeFor(0.5, 0.85),
                           child: SlideTransition(
                             position: _slideFor(0.5, 0.85),
-                            child: PrimaryButton(
-                              label: 'Masuk',
-                              isLoading: isLoading,
-                              onPressed: isLoading ? () {} : _handleLogin,
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: PrimaryButton(
+                                    label: 'Masuk',
+                                    isLoading: isLoading,
+                                    onPressed: isLoading ? () {} : _handleLogin,
+                                  ),
+                                ),
+                                if (_biometricAvailable) ...[
+                                  const SizedBox(width: 12),
+                                  GestureDetector(
+                                    onTap: _handleBiometricLogin,
+                                    child: Container(
+                                      width: 52,
+                                      height: 52,
+                                      decoration: BoxDecoration(
+                                        color: AppColors.accent.withValues(alpha: 0.15),
+                                        borderRadius: BorderRadius.circular(AppRadius.button),
+                                        border: Border.all(color: AppColors.accent.withValues(alpha: 0.4)),
+                                      ),
+                                      child: const Icon(
+                                        Icons.fingerprint_rounded,
+                                        color: AppColors.accent,
+                                        size: 28,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
                             ),
                           ),
                         ),

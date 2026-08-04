@@ -7,6 +7,7 @@ import 'package:money_manajemen/features/analytics/presentation/pages/analytics_
 import 'package:money_manajemen/features/profile/presentation/pages/profile_screen.dart';
 import 'package:money_manajemen/features/auth/data/datasources/auth_local_data_source.dart';
 import '../../data/datasources/transaction_remote_data_source.dart';
+import 'package:money_manajemen/core/widgets/app_empty_state.dart';
 import 'package:money_manajemen/core/widgets/app_loader.dart';
 import 'package:money_manajemen/core/widgets/dynamic_island_toast.dart';
 import '../widgets/transaction_tile.dart';
@@ -558,39 +559,25 @@ class _TransactionsScreenState extends State<TransactionsScreen>
   }
 
   Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 72,
-            height: 72,
-            decoration: BoxDecoration(
-              color: AppColors.bgInput,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.receipt_long_outlined,
-              size: 32,
-              color: AppColors.textSecondary,
-            ),
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            'Belum ada transaksi',
-            style: TextStyle(
-              fontFamily: AppTextStyles.fontFamily,
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 4),
-          const Text(
-            'Coba ubah filter atau kata kunci pencarian',
-            style: AppTextStyles.tagline,
-          ),
-        ],
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 40),
+      child: AppEmptyState(
+        icon: _searchController.text.isNotEmpty
+            ? Icons.search_off_rounded
+            : Icons.receipt_long_rounded,
+        title: _searchController.text.isNotEmpty
+            ? 'Hasil Tidak Ditemukan'
+            : 'Belum Ada Transaksi',
+        message: _searchController.text.isNotEmpty
+            ? 'Tidak ditemukan transaksi dengan kata kunci "${_searchController.text}".'
+            : 'Belum ada transaksi pada kategori ini. Mulai tambahkan transaksi baru!',
+        buttonText: 'Tambah Transaksi',
+        onButtonPressed: () async {
+          final newTx = await AddTransactionSheet.show(context);
+          if (newTx != null && mounted) {
+            _fetchTransactions();
+          }
+        },
       ),
     );
   }

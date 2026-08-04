@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:money_manajemen/app/theme/app_theme.dart';
 import 'package:money_manajemen/core/database/database_helper.dart';
+import 'package:money_manajemen/core/services/biometric_service.dart';
+import 'package:money_manajemen/core/widgets/dynamic_island_toast.dart';
 import 'package:money_manajemen/core/widgets/app_bottom_nav.dart';
 import 'package:money_manajemen/features/dashboard/presentation/pages/dashboard_screen.dart';
 import 'package:money_manajemen/features/transactions/presentation/pages/transactions_screen.dart';
@@ -53,16 +55,20 @@ class _ProfileScreenState extends State<ProfileScreen>
     _loadProfileData();
   }
 
+  bool _biometricOn = false;
+
   Future<void> _loadProfileData() async {
     final localUser = await AuthLocalDataSourceImpl().getUser();
     final localAccs = await DatabaseHelper.instance.getAccounts();
     final localTxs = await DatabaseHelper.instance.getTransactions();
+    final bioOn = await BiometricService.isBiometricEnabled();
 
     if (mounted) {
       setState(() {
         _user = localUser;
         _accountsCount = localAccs.length;
         _transactionsCount = localTxs.length;
+        _biometricOn = bioOn;
       });
     }
 
@@ -75,6 +81,33 @@ class _ProfileScreenState extends State<ProfileScreen>
         });
       }
     } catch (_) {}
+  }
+
+  Future<void> _handleBiometricToggle(bool value) async {
+    setState(() => _biometricOn = value);
+    await BiometricService.setBiometricEnabled(value);
+
+    if (mounted) {
+      if (value) {
+        DynamicIslandToast.show(
+          context,
+          title: 'Biometrik Aktif',
+          message: 'Login dengan sidik jari berhasil diaktifkan',
+          type: DynamicToastType.success,
+        );
+
+        BiometricService.authenticate(
+          reason: 'Verifikasi sidik jari untuk mengaktifkan login biometrik',
+        );
+      } else {
+        DynamicIslandToast.show(
+          context,
+          title: 'Biometrik Nonaktif',
+          message: 'Login dengan sidik jari telah dinonaktifkan',
+          type: DynamicToastType.info,
+        );
+      }
+    }
   }
 
   String get _userInitials {
@@ -273,6 +306,17 @@ class _ProfileScreenState extends State<ProfileScreen>
                   label: 'Keamanan & 2FA',
                   color: AppColors.success,
                   onTap: () {},
+                ),
+                _MenuTile(
+                  icon: Icons.fingerprint_rounded,
+                  label: 'Login Sidik Jari (Biometrik)',
+                  color: AppColors.accent,
+                  trailing: Switch(
+                    value: _biometricOn,
+                    onChanged: _handleBiometricToggle,
+                    activeThumbColor: AppColors.accent,
+                    inactiveTrackColor: AppColors.bgInput,
+                  ),
                 ),
               ],
             ),
