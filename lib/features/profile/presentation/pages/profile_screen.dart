@@ -14,6 +14,7 @@ import 'package:money_manajemen/features/auth/data/datasources/auth_remote_data_
 import 'package:money_manajemen/features/auth/data/models/user_model.dart';
 import 'package:money_manajemen/features/profile/presentation/widgets/edit_profile_sheet.dart';
 import 'package:money_manajemen/features/profile/presentation/widgets/two_factor_security_sheet.dart';
+import 'package:money_manajemen/features/profile/presentation/pages/help_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -366,7 +367,11 @@ class _ProfileScreenState extends State<ProfileScreen>
                   icon: Icons.help_outline_rounded,
                   label: 'Bantuan',
                   color: AppColors.info,
-                  onTap: () {},
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const HelpScreen()),
+                    );
+                  },
                 ),
                 _MenuTile(
                   icon: Icons.privacy_tip_outlined,
