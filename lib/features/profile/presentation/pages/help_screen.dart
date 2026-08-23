@@ -3,6 +3,8 @@ import 'package:money_manajemen/app/theme/app_theme.dart';
 import 'package:money_manajemen/core/widgets/animated_background.dart';
 import 'package:money_manajemen/core/widgets/app_text_field.dart';
 import 'package:money_manajemen/core/widgets/dynamic_island_toast.dart';
+import 'package:money_manajemen/features/profile/presentation/widgets/profile_header_bar.dart';
+import 'package:money_manajemen/features/profile/presentation/widgets/faq_accordion_item.dart';
 
 class _FaqItem {
   final String category;
@@ -140,43 +142,10 @@ class _HelpScreenState extends State<HelpScreen> with SingleTickerProviderStateM
         child: SafeArea(
           child: Column(
             children: [
-              // Header Row
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-                child: FadeTransition(
-                  opacity: _fadeFor(0.0, 0.3),
-                  child: Row(
-                    children: [
-                      GestureDetector(
-                        onTap: () => Navigator.of(context).pop(),
-                        child: Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: AppColors.bgCard.withValues(alpha: 0.9),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: AppColors.accent.withValues(alpha: 0.3)),
-                          ),
-                          child: const Icon(
-                            Icons.arrow_back_rounded,
-                            size: 20,
-                            color: AppColors.accent,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      const Text(
-                        'Pusat Bantuan & FAQ',
-                        style: TextStyle(
-                          fontFamily: AppTextStyles.fontFamily,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+              // Reusable Header Navigation Bar
+              FadeTransition(
+                opacity: _fadeFor(0.0, 0.3),
+                child: const ProfileHeaderBar(title: 'Pusat Bantuan & FAQ'),
               ),
 
               Expanded(
@@ -293,9 +262,7 @@ class _HelpScreenState extends State<HelpScreen> with SingleTickerProviderStateM
                                           : AppColors.bgCard.withValues(alpha: 0.6),
                                       borderRadius: BorderRadius.circular(20),
                                       border: Border.all(
-                                        color: isSelected
-                                            ? AppColors.accent
-                                            : AppColors.cardBorder,
+                                        color: isSelected ? AppColors.accent : AppColors.cardBorder,
                                       ),
                                     ),
                                     child: Text(
@@ -333,7 +300,7 @@ class _HelpScreenState extends State<HelpScreen> with SingleTickerProviderStateM
 
                       const SizedBox(height: 12),
 
-                      // Filtered Accordion List
+                      // Filtered Reusable Accordion List
                       if (filtered.isEmpty)
                         Padding(
                           padding: const EdgeInsets.symmetric(vertical: 32),
@@ -361,64 +328,16 @@ class _HelpScreenState extends State<HelpScreen> with SingleTickerProviderStateM
                             final item = filtered[index];
                             final isExpanded = _expandedIndex == index;
 
-                            return Container(
-                              margin: const EdgeInsets.only(bottom: 10),
-                              decoration: BoxDecoration(
-                                color: AppColors.bgCard.withValues(alpha: 0.8),
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(
-                                  color: isExpanded
-                                      ? AppColors.accent.withValues(alpha: 0.4)
-                                      : AppColors.cardBorder,
-                                ),
-                              ),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(16),
-                                child: ExpansionTile(
-                                  key: Key('faq_$index'),
-                                  initiallyExpanded: isExpanded,
-                                  onExpansionChanged: (expanded) {
-                                    setState(() {
-                                      _expandedIndex = expanded ? index : null;
-                                    });
-                                  },
-                                  iconColor: AppColors.accent,
-                                  collapsedIconColor: AppColors.textSecondary,
-                                  tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                                  title: Text(
-                                    item.question,
-                                    style: TextStyle(
-                                      fontFamily: AppTextStyles.fontFamily,
-                                      fontSize: 13.5,
-                                      fontWeight: isExpanded ? FontWeight.bold : FontWeight.w600,
-                                      color: isExpanded ? AppColors.accent : AppColors.textPrimary,
-                                    ),
-                                  ),
-                                  childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                                  children: [
-                                    Container(
-                                      width: double.infinity,
-                                      padding: const EdgeInsets.all(14),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.bgDeep.withValues(alpha: 0.75),
-                                        borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(
-                                          color: AppColors.accent.withValues(alpha: 0.2),
-                                        ),
-                                      ),
-                                      child: Text(
-                                        item.answer,
-                                        style: const TextStyle(
-                                          fontFamily: AppTextStyles.fontFamily,
-                                          fontSize: 12.5,
-                                          color: AppColors.textPrimary,
-                                          height: 1.5,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
+                            return FaqAccordionItem(
+                              key: ValueKey('faq_$index'),
+                              question: item.question,
+                              answer: item.answer,
+                              isExpanded: isExpanded,
+                              onExpansionChanged: (expanded) {
+                                setState(() {
+                                  _expandedIndex = expanded ? index : null;
+                                });
+                              },
                             );
                           },
                         ),

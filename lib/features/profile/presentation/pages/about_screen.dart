@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:money_manajemen/app/theme/app_theme.dart';
 import 'package:money_manajemen/core/widgets/animated_background.dart';
+import 'package:money_manajemen/features/profile/presentation/widgets/profile_header_bar.dart';
+import 'package:money_manajemen/features/profile/presentation/widgets/info_spec_chip.dart';
 
 class AboutScreen extends StatefulWidget {
   const AboutScreen({super.key});
@@ -49,43 +51,10 @@ class _AboutScreenState extends State<AboutScreen> with SingleTickerProviderStat
         child: SafeArea(
           child: Column(
             children: [
-              // Header Navigation Bar
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-                child: FadeTransition(
-                  opacity: _fadeFor(0.0, 0.3),
-                  child: Row(
-                    children: [
-                      GestureDetector(
-                        onTap: () => Navigator.of(context).pop(),
-                        child: Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: AppColors.bgCard.withValues(alpha: 0.9),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: AppColors.accent.withValues(alpha: 0.3)),
-                          ),
-                          child: const Icon(
-                            Icons.arrow_back_rounded,
-                            size: 20,
-                            color: AppColors.accent,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      const Text(
-                        'Tentang Aplikasi',
-                        style: TextStyle(
-                          fontFamily: AppTextStyles.fontFamily,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+              // Reusable Header Navigation Bar
+              FadeTransition(
+                opacity: _fadeFor(0.0, 0.3),
+                child: const ProfileHeaderBar(title: 'Tentang Aplikasi'),
               ),
 
               // Scrollable Content
@@ -175,7 +144,7 @@ class _AboutScreenState extends State<AboutScreen> with SingleTickerProviderStat
 
                       const SizedBox(height: 24),
 
-                      // Tech Stack Grid
+                      // Reusable Tech Stack Specs Grid
                       FadeTransition(
                         opacity: _fadeFor(0.2, 0.5),
                         child: Column(
@@ -192,18 +161,18 @@ class _AboutScreenState extends State<AboutScreen> with SingleTickerProviderStat
                             ),
                             const SizedBox(height: 10),
                             Row(
-                              children: [
+                              children: const [
                                 Expanded(
-                                  child: _buildSpecChip(
+                                  child: InfoSpecChip(
                                     icon: Icons.flutter_dash_rounded,
                                     title: 'Mobile App',
                                     value: 'Flutter 3.29',
                                     color: AppColors.accent,
                                   ),
                                 ),
-                                const SizedBox(width: 8),
+                                SizedBox(width: 8),
                                 Expanded(
-                                  child: _buildSpecChip(
+                                  child: InfoSpecChip(
                                     icon: Icons.api_rounded,
                                     title: 'Backend API',
                                     value: 'Laravel 11.x',
@@ -214,18 +183,18 @@ class _AboutScreenState extends State<AboutScreen> with SingleTickerProviderStat
                             ),
                             const SizedBox(height: 8),
                             Row(
-                              children: [
+                              children: const [
                                 Expanded(
-                                  child: _buildSpecChip(
+                                  child: InfoSpecChip(
                                     icon: Icons.auto_awesome_rounded,
                                     title: 'AI Engine',
                                     value: 'Gemini OCR',
                                     color: AppColors.warning,
                                   ),
                                 ),
-                                const SizedBox(width: 8),
+                                SizedBox(width: 8),
                                 Expanded(
-                                  child: _buildSpecChip(
+                                  child: InfoSpecChip(
                                     icon: Icons.chat_rounded,
                                     title: '2FA Gateway',
                                     value: 'WA SIGATE API',
@@ -240,7 +209,7 @@ class _AboutScreenState extends State<AboutScreen> with SingleTickerProviderStat
 
                       const SizedBox(height: 24),
 
-                      // App Overview Description Card
+                      // App Overview Card
                       FadeTransition(
                         opacity: _fadeFor(0.35, 0.65),
                         child: Container(
@@ -407,53 +376,6 @@ class _AboutScreenState extends State<AboutScreen> with SingleTickerProviderStat
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildSpecChip({
-    required IconData icon,
-    required String title,
-    required String value,
-    required Color color,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withValues(alpha: 0.3), width: 1.2),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, size: 18, color: color),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontFamily: AppTextStyles.fontFamily,
-                    fontSize: 9.5,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: 1),
-                Text(
-                  value,
-                  style: TextStyle(
-                    fontFamily: AppTextStyles.fontFamily,
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.bold,
-                    color: color,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }

@@ -397,19 +397,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                 ),
               ],
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 28),
             _buildLogoutButton(),
-            const SizedBox(height: 18),
-            const Center(
-              child: Text(
-                'MoneyFlow v1.0.0',
-                style: TextStyle(
-                  fontFamily: AppTextStyles.fontFamily,
-                  fontSize: 11,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-            ),
+            const SizedBox(height: 24),
           ],
         ),
       ),

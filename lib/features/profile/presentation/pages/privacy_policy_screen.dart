@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:money_manajemen/app/theme/app_theme.dart';
 import 'package:money_manajemen/core/widgets/animated_background.dart';
+import 'package:money_manajemen/features/profile/presentation/widgets/profile_header_bar.dart';
+import 'package:money_manajemen/features/profile/presentation/widgets/info_section_card.dart';
 
 class PrivacyPolicyScreen extends StatefulWidget {
   const PrivacyPolicyScreen({super.key});
@@ -49,43 +51,10 @@ class _PrivacyPolicyScreenState extends State<PrivacyPolicyScreen> with SingleTi
         child: SafeArea(
           child: Column(
             children: [
-              // Header Navigation Bar
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-                child: FadeTransition(
-                  opacity: _fadeFor(0.0, 0.3),
-                  child: Row(
-                    children: [
-                      GestureDetector(
-                        onTap: () => Navigator.of(context).pop(),
-                        child: Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: AppColors.bgCard.withValues(alpha: 0.9),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: AppColors.accent.withValues(alpha: 0.3)),
-                          ),
-                          child: const Icon(
-                            Icons.arrow_back_rounded,
-                            size: 20,
-                            color: AppColors.accent,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      const Text(
-                        'Kebijakan Privasi',
-                        style: TextStyle(
-                          fontFamily: AppTextStyles.fontFamily,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+              // Reusable Header Navigation Bar
+              FadeTransition(
+                opacity: _fadeFor(0.0, 0.3),
+                child: const ProfileHeaderBar(title: 'Kebijakan Privasi'),
               ),
 
               // Scrollable Policy Content
@@ -182,49 +151,36 @@ class _PrivacyPolicyScreenState extends State<PrivacyPolicyScreen> with SingleTi
 
                       const SizedBox(height: 20),
 
-                      // Section 1: Pengumpulan Data
-                      _buildSectionCard(
-                        step: '1',
+                      // Reusable Info Section Cards
+                      const InfoSectionCard(
                         title: 'Pengumpulan & Penggunaan Data',
                         icon: Icons.folder_shared_rounded,
                         color: AppColors.accent,
                         content:
                             'Kami hanya mengumpulkan informasi yang diperlukan untuk mengoperasikan aplikasi, seperti Nama, Email, Username, Nomor WhatsApp (untuk 2FA), dan catatan transaksi keuangan Anda. Data ini tidak akan dijual atau disebarluaskan kepada pihak ketiga.',
                       ),
-
-                      // Section 2: Keamanan & Enkripsi
-                      _buildSectionCard(
-                        step: '2',
+                      const InfoSectionCard(
                         title: 'Keamanan & Enkripsi Data',
                         icon: Icons.shield_rounded,
                         color: AppColors.success,
                         content:
                             'Seluruh komunikasi data antara aplikasi Android dan server dienkripsi menggunakan protokol HTTPS 256-Bit SSL. Data transaksi Anda juga disimpan secara lokal pada database SQLite terenkripsi di dalam perangkat Anda.',
                       ),
-
-                      // Section 3: Pemrosesan AI Gemini
-                      _buildSectionCard(
-                        step: '3',
+                      const InfoSectionCard(
                         title: 'Pemrosesan Struk AI (Gemini)',
                         icon: Icons.auto_awesome_rounded,
                         color: AppColors.purple,
                         content:
                             'Saat Anda menggunakan fitur Pindai Struk AI, foto struk dikirim secara aman ke API Gemini untuk mengekstrak teks nominal dan nama transaksi. Foto struk diproses secara transient dan tidak disimpan secara permanen pada server AI.',
                       ),
-
-                      // Section 4: WhatsApp 2FA Gateway
-                      _buildSectionCard(
-                        step: '4',
+                      const InfoSectionCard(
                         title: 'Otentikasi 2FA WhatsApp',
                         icon: Icons.chat_rounded,
                         color: AppColors.info,
                         content:
                             'Nomor WhatsApp Anda hanya digunakan untuk mengirimkan Kode OTP 6-Digit saat otentikasi login 2FA via WhatsApp Gateway SIGATE. Kode OTP berlaku terbatas selama 5 menit dan tidak digunakan untuk pesan promosi.',
                       ),
-
-                      // Section 5: Hak Pengguna
-                      _buildSectionCard(
-                        step: '5',
+                      const InfoSectionCard(
                         title: 'Hak & Kontrol Pengguna',
                         icon: Icons.manage_accounts_rounded,
                         color: AppColors.warning,
@@ -271,73 +227,6 @@ class _PrivacyPolicyScreenState extends State<PrivacyPolicyScreen> with SingleTi
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildSectionCard({
-    required String step,
-    required String title,
-    required IconData icon,
-    required Color color,
-    required String content,
-  }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.bgCard.withValues(alpha: 0.85),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.cardBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: color.withValues(alpha: 0.3)),
-                ),
-                child: Icon(icon, color: color, size: 20),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  title,
-                  style: const TextStyle(
-                    fontFamily: AppTextStyles.fontFamily,
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppColors.bgDeep.withValues(alpha: 0.75),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: color.withValues(alpha: 0.15)),
-            ),
-            child: Text(
-              content,
-              style: const TextStyle(
-                fontFamily: AppTextStyles.fontFamily,
-                fontSize: 12,
-                color: AppColors.textPrimary,
-                height: 1.5,
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }
