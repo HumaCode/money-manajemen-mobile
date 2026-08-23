@@ -5,8 +5,10 @@ import 'package:money_manajemen/app/theme/app_theme.dart';
 import 'package:money_manajemen/core/widgets/app_text_field.dart';
 import 'package:money_manajemen/core/widgets/dynamic_island_toast.dart';
 import 'package:money_manajemen/core/widgets/primary_button.dart';
+import 'package:money_manajemen/core/utils/formatters.dart';
 import 'package:money_manajemen/features/auth/data/datasources/auth_local_data_source.dart';
 import 'package:money_manajemen/features/transactions/data/datasources/master_remote_data_source.dart';
+import 'package:money_manajemen/features/transactions/data/datasources/transaction_remote_data_source.dart';
 import 'package:money_manajemen/features/transactions/data/models/category_model.dart';
 import 'package:money_manajemen/features/transactions/data/models/account_model.dart';
 import 'package:money_manajemen/features/transactions/data/models/transaction_model.dart';
@@ -15,12 +17,14 @@ class AddTransactionSheet extends StatefulWidget {
   final TransactionModel? transactionToEdit;
   final String? initialTitle;
   final int? initialAmount;
+  final String? initialCategory;
 
   const AddTransactionSheet({
     super.key,
     this.transactionToEdit,
     this.initialTitle,
     this.initialAmount,
+    this.initialCategory,
   });
 
   static Future<TransactionModel?> show(
@@ -28,6 +32,7 @@ class AddTransactionSheet extends StatefulWidget {
     TransactionModel? transactionToEdit,
     String? initialTitle,
     int? initialAmount,
+    String? initialCategory,
   }) {
     return showModalBottomSheet<TransactionModel>(
       context: context,
@@ -37,6 +42,7 @@ class AddTransactionSheet extends StatefulWidget {
         transactionToEdit: transactionToEdit,
         initialTitle: initialTitle,
         initialAmount: initialAmount,
+        initialCategory: initialCategory,
       ),
     );
   }
@@ -66,12 +72,13 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
     super.initState();
     final editItem = widget.transactionToEdit;
     _titleController = TextEditingController(text: editItem?.title ?? widget.initialTitle ?? '');
+    final rawAmt = editItem != null
+        ? editItem.amount.abs()
+        : (widget.initialAmount != null && widget.initialAmount! > 0
+            ? widget.initialAmount
+            : null);
     _amountController = TextEditingController(
-      text: editItem != null
-          ? editItem.amount.abs().toString()
-          : (widget.initialAmount != null && widget.initialAmount! > 0
-              ? widget.initialAmount.toString()
-              : ''),
+      text: rawAmt != null ? ThousandsSeparatorInputFormatter.formatNumberWithDots(rawAmt.toString()) : '',
     );
     if (editItem != null) {
       _selectedType = editItem.type;
@@ -82,7 +89,16 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
   void _applyDefaultSelections() {
     final filteredCats = _filteredCategories;
     if (filteredCats.isNotEmpty && (_selectedCategory == null || !filteredCats.contains(_selectedCategory))) {
-      _selectedCategory = filteredCats.first;
+      if (widget.initialCategory != null && widget.initialCategory!.isNotEmpty) {
+        final match = filteredCats.firstWhere(
+          (c) => c.name.toLowerCase().contains(widget.initialCategory!.toLowerCase()) ||
+                 widget.initialCategory!.toLowerCase().contains(c.name.toLowerCase()),
+          orElse: () => filteredCats.first,
+        );
+        _selectedCategory = match;
+      } else {
+        _selectedCategory = filteredCats.first;
+      }
     }
     if (_allAccounts.isNotEmpty) {
       if (_selectedAccount == null || !_allAccounts.contains(_selectedAccount)) {
@@ -231,6 +247,18 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
         await masterDS.createTransaction(payload);
       }
 
+      // Re-sync SQFlite database with latest data from server (transactions & account balances)
+      try {
+        final txRemoteDS = TransactionRemoteDataSourceImpl(
+          client: http.Client(),
+          localDataSource: AuthLocalDataSourceImpl(),
+        );
+        await Future.wait([
+          txRemoteDS.getTransactions(),
+          masterDS.getAccounts(),
+        ]);
+      } catch (_) {}
+
       if (!mounted) return;
       final resultTx = TransactionModel(
         id: widget.transactionToEdit?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
@@ -363,7 +391,10 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
               label: 'Nominal (Rp)',
               icon: Icons.attach_money_rounded,
               keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                ThousandsSeparatorInputFormatter(),
+              ],
             ),
             const SizedBox(height: 20),
 
@@ -500,13 +531,27 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
               items: _allAccounts.map((acc) {
                 return DropdownMenuItem<AccountModel>(
                   value: acc,
-                  child: Text(
-                    acc.name.isNotEmpty ? acc.name : 'Akun ${acc.id}',
-                    style: const TextStyle(
-                      fontFamily: AppTextStyles.fontFamily,
-                      fontSize: 13,
-                      color: AppColors.textPrimary,
-                    ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        acc.name.isNotEmpty ? acc.name : 'Akun ${acc.id}',
+                        style: const TextStyle(
+                          fontFamily: AppTextStyles.fontFamily,
+                          fontSize: 13,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      Text(
+                        formatRupiah(acc.balance),
+                        style: const TextStyle(
+                          fontFamily: AppTextStyles.fontFamily,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.accent,
+                        ),
+                      ),
+                    ],
                   ),
                 );
               }).toList(),

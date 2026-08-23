@@ -15,7 +15,9 @@ import 'package:money_manajemen/features/auth/data/models/user_model.dart';
 import 'package:money_manajemen/features/transactions/presentation/widgets/add_transaction_sheet.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
+import 'package:money_manajemen/core/widgets/ai_scanning_loading_dialog.dart';
 import 'package:money_manajemen/features/transactions/data/services/receipt_scanner_service.dart';
+import 'package:money_manajemen/features/transactions/presentation/widgets/scanned_receipt_preview_sheet.dart';
 import 'package:money_manajemen/features/transactions/data/models/transaction_model.dart';
 import 'package:money_manajemen/features/transactions/data/models/account_model.dart';
 import 'package:money_manajemen/features/transactions/data/datasources/transaction_remote_data_source.dart';
@@ -379,7 +381,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       baseAccountsBalance += acc.balance;
     }
 
-    int netTotalBalance = baseAccountsBalance + income - expense;
+    int netTotalBalance = baseAccountsBalance;
 
     final isBioEnabled = await BiometricService.isBiometricEnabled();
     List<NotificationItem> dynamicNotifs = [];
@@ -639,7 +641,7 @@ class _DashboardScreenState extends State<DashboardScreen>
             ),
             const SizedBox(height: 18),
             const Text(
-              'Pindai Struk dengan AI Gemini',
+              'Pindai Struk',
               style: TextStyle(
                 fontFamily: AppTextStyles.fontFamily,
                 fontSize: 18,
@@ -706,62 +708,107 @@ class _DashboardScreenState extends State<DashboardScreen>
 
     if (source == null) return;
 
-    final image = await picker.pickImage(source: source);
+    final image = await picker.pickImage(
+      source: source,
+      imageQuality: 50,
+      maxWidth: 800,
+      maxHeight: 800,
+    );
     if (image == null || !mounted) return;
 
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => Center(
-        child: Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: AppColors.bgCard,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.cardBorder),
-          ),
-          child: const Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircularProgressIndicator(color: AppColors.accent),
-              SizedBox(height: 16),
-              Text(
-                'Memindai Struk dengan AI Gemini...',
-                style: TextStyle(
-                  fontFamily: AppTextStyles.fontFamily,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+    AiScanningLoadingDialog.show(context);
 
-    final scanResult = await ReceiptScannerService.scanReceipt(image);
-
-    if (mounted) {
-      Navigator.pop(context);
+    ScannedReceiptResult? scanResult;
+    try {
+      scanResult = await ReceiptScannerService.scanReceipt(image);
+    } catch (e) {
+      if (mounted) {
+        DynamicIslandToast.show(
+          context,
+          title: 'Gagal Pindai Struk',
+          message: e.toString().replaceAll('Exception: ', ''),
+          type: DynamicToastType.error,
+        );
+      }
+    } finally {
+      if (mounted) {
+        AiScanningLoadingDialog.hide(context);
+      }
     }
 
     if (scanResult != null && mounted) {
+      // 1. Show preview, item selection, account & category chooser
+      final submitResult = await ScannedReceiptPreviewSheet.show(
+        context,
+        scanResult,
+      );
+
+      if (submitResult == null || submitResult.selectedItems.isEmpty || !mounted) return;
+
+      // Show loading feedback
       DynamicIslandToast.show(
         context,
-        title: 'Hasil Pindai AI Gemini',
-        message: 'Data struk berhasil dibaca otomatis oleh AI',
-        type: DynamicToastType.success,
+        title: 'Menyimpan Transaksi Struk',
+        message: 'Sedang menyimpan ${submitResult.selectedItems.length} item transaksi...',
+        type: DynamicToastType.info,
       );
 
-      final newTx = await AddTransactionSheet.show(
-        context,
-        initialTitle: scanResult.title,
-        initialAmount: scanResult.amount,
-      );
+      try {
+        final masterDS = MasterRemoteDataSourceImpl(
+          client: http.Client(),
+          localDataSource: AuthLocalDataSourceImpl(),
+        );
 
-      if (newTx != null && mounted) {
-        _loadDashboardData();
+        final now = DateTime.now();
+        final dateStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+        final items = submitResult.selectedItems;
+        final totalDiscount = scanResult.discount;
+
+        // Proportional discount distribution for individual items
+        final totalSubtotal = items.fold(0, (sum, i) => sum + i.totalPrice);
+
+        for (int i = 0; i < items.length; i++) {
+          final item = items[i];
+          int itemNetPrice = item.totalPrice;
+          if (totalSubtotal > 0 && totalDiscount > 0) {
+            final itemDiscount = ((item.totalPrice / totalSubtotal) * totalDiscount).round();
+            itemNetPrice = item.totalPrice - itemDiscount;
+            if (itemNetPrice < 0) itemNetPrice = 0;
+          }
+
+          final title = item.qty > 1 ? '${item.name} (${item.qty}x)' : item.name;
+
+          final payload = <String, dynamic>{
+            'title': title,
+            'description': title,
+            'amount': itemNetPrice,
+            'type': 'expense',
+            'transaction_date': dateStr,
+            'account_id': submitResult.account.id,
+            'category_id': submitResult.category.id,
+          };
+
+          await masterDS.createTransaction(payload);
+        }
+
+        if (mounted) {
+          DynamicIslandToast.show(
+            context,
+            title: 'Berhasil Disimpan',
+            message: '${items.length} item transaksi struk berhasil ditambahkan',
+            type: DynamicToastType.success,
+          );
+          _loadDashboardData();
+        }
+      } catch (e) {
+        if (mounted) {
+          DynamicIslandToast.show(
+            context,
+            title: 'Gagal Menyimpan',
+            message: e.toString().replaceAll('Exception: ', ''),
+            type: DynamicToastType.error,
+          );
+        }
       }
     }
   }
@@ -1303,66 +1350,86 @@ class _DashboardScreenState extends State<DashboardScreen>
                 ..._accounts.map((acc) {
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 12),
-                    child: Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: AppColors.bgInput,
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () {
+                          Navigator.pop(ctx);
+                          _showAccountTransactionsSheet(context, acc);
+                        },
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.cardBorder),
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 38,
-                            height: 38,
-                            decoration: BoxDecoration(
-                              color: AppColors.info.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: const Icon(
-                              Icons.account_balance_rounded,
-                              color: AppColors.info,
-                              size: 18,
-                            ),
+                        child: Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: AppColors.bgInput,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppColors.cardBorder),
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  acc.name,
-                                  style: const TextStyle(
-                                    fontFamily: AppTextStyles.fontFamily,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.textPrimary,
-                                  ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 38,
+                                height: 38,
+                                decoration: BoxDecoration(
+                                  color: AppColors.info.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(10),
                                 ),
-                                if (acc.accountNumber.isNotEmpty) ...[
-                                  const SizedBox(height: 2),
+                                child: const Icon(
+                                  Icons.account_balance_rounded,
+                                  color: AppColors.info,
+                                  size: 18,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      acc.name,
+                                      style: const TextStyle(
+                                        fontFamily: AppTextStyles.fontFamily,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                        color: AppColors.textPrimary,
+                                      ),
+                                    ),
+                                    if (acc.accountNumber.isNotEmpty) ...[
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        acc.accountNumber,
+                                        style: const TextStyle(
+                                          fontFamily: AppTextStyles.fontFamily,
+                                          fontSize: 11,
+                                          color: AppColors.textSecondary,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                              Row(
+                                children: [
                                   Text(
-                                    acc.accountNumber,
+                                    formatRupiah(acc.balance),
                                     style: const TextStyle(
                                       fontFamily: AppTextStyles.fontFamily,
-                                      fontSize: 11,
-                                      color: AppColors.textSecondary,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppColors.accent,
                                     ),
                                   ),
+                                  const SizedBox(width: 6),
+                                  const Icon(
+                                    Icons.chevron_right_rounded,
+                                    color: AppColors.textSecondary,
+                                    size: 18,
+                                  ),
                                 ],
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
-                          Text(
-                            formatRupiah(acc.balance),
-                            style: const TextStyle(
-                              fontFamily: AppTextStyles.fontFamily,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.accent,
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
                     ),
                   );
@@ -1394,6 +1461,204 @@ class _DashboardScreenState extends State<DashboardScreen>
                 ],
               ),
               const SizedBox(height: 16),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showAccountTransactionsSheet(BuildContext context, AccountModel acc) async {
+    final allLocalTx = await DatabaseHelper.instance.getTransactions();
+    final accountTx = allLocalTx.where((tx) {
+      if (tx.accountId != null && tx.accountId!.isNotEmpty) {
+        return tx.accountId == acc.id || tx.toAccountId == acc.id;
+      }
+      final lowerName = acc.name.toLowerCase();
+      return tx.title.toLowerCase().contains(lowerName) ||
+          tx.category.toLowerCase().contains(lowerName);
+    }).toList();
+
+    if (!context.mounted) return;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(ctx).size.height * 0.75,
+          ),
+          padding: const EdgeInsets.all(20),
+          decoration: const BoxDecoration(
+            color: AppColors.bgCard,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.textSecondary.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.accent.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.account_balance_rounded,
+                      color: AppColors.accent,
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Histori Transaksi ${acc.name}',
+                          style: const TextStyle(
+                            fontFamily: AppTextStyles.fontFamily,
+                            fontSize: 17,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Saldo: ${formatRupiah(acc.balance)}',
+                          style: const TextStyle(
+                            fontFamily: AppTextStyles.fontFamily,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.accent,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    icon: const Icon(Icons.close_rounded, color: AppColors.textSecondary),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              const Divider(color: AppColors.cardBorder, height: 1),
+              const SizedBox(height: 12),
+              Expanded(
+                child: accountTx.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.receipt_long_outlined,
+                              size: 48,
+                              color: AppColors.textMuted.withValues(alpha: 0.5),
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Belum ada transaksi untuk akun ${acc.name}',
+                              style: const TextStyle(
+                                fontFamily: AppTextStyles.fontFamily,
+                                fontSize: 13,
+                                color: AppColors.textMuted,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : ListView.separated(
+                        itemCount: accountTx.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 8),
+                        itemBuilder: (context, index) {
+                          final tx = accountTx[index];
+                          final isIncome = tx.isIncome;
+                          final isTransfer = tx.type == TransactionType.transfer;
+
+                          final signStr = isIncome ? '+' : (isTransfer ? '' : '-');
+                          final amountColor = isIncome
+                              ? AppColors.success
+                              : (isTransfer ? AppColors.info : AppColors.warning);
+
+                          return Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: AppColors.bgInput,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: AppColors.cardBorder.withValues(alpha: 0.5)),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 38,
+                                  height: 38,
+                                  decoration: BoxDecoration(
+                                    color: tx.color.withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Icon(
+                                    tx.icon,
+                                    color: tx.color,
+                                    size: 18,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        tx.title,
+                                        style: const TextStyle(
+                                          fontFamily: AppTextStyles.fontFamily,
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                          color: AppColors.textPrimary,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        '${tx.category} • ${formatDateFull(tx.date)}',
+                                        style: const TextStyle(
+                                          fontFamily: AppTextStyles.fontFamily,
+                                          fontSize: 11,
+                                          color: AppColors.textSecondary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Text(
+                                  '$signStr${formatRupiah(tx.amount.abs())}',
+                                  style: TextStyle(
+                                    fontFamily: AppTextStyles.fontFamily,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    color: amountColor,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+              ),
             ],
           ),
         );

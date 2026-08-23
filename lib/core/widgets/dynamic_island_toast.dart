@@ -13,7 +13,7 @@ class DynamicIslandToast {
     required String message,
     String? title,
     DynamicToastType type = DynamicToastType.info,
-    Duration duration = const Duration(seconds: 3),
+    Duration? duration,
   }) {
     _timer?.cancel();
     _currentEntry?.remove();
@@ -21,6 +21,11 @@ class DynamicIslandToast {
 
     final overlay = Overlay.maybeOf(context);
     if (overlay == null) return;
+
+    final effectiveDuration = duration ??
+        (message.length > 50
+            ? const Duration(seconds: 5)
+            : const Duration(seconds: 3));
 
     final entry = OverlayEntry(
       builder: (context) => _DynamicIslandWidget(
@@ -34,7 +39,7 @@ class DynamicIslandToast {
     _currentEntry = entry;
     overlay.insert(entry);
 
-    _timer = Timer(duration, () {
+    _timer = Timer(effectiveDuration, () {
       dismiss();
     });
   }
@@ -242,8 +247,8 @@ class _DynamicIslandWidgetState extends State<_DynamicIslandWidget>
                                     fontWeight: FontWeight.w400,
                                     color: AppColors.textPrimary,
                                   ),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
+                                  maxLines: 10,
+                                  overflow: TextOverflow.visible,
                                 ),
                               ],
                             ),

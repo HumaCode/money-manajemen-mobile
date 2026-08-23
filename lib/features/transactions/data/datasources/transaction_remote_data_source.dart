@@ -54,13 +54,11 @@ class TransactionRemoteDataSourceImpl implements TransactionRemoteDataSource {
         if (response.statusCode == 200 && responseJson['success'] == true) {
           final transactionResponse = TransactionResponseModel.fromJson(responseJson);
           
-          // Save to SQLite database asynchronously
+          // Sync server transactions to SQLite database
           final mappedTx = transactionResponse.data
               .map((d) => TransactionModel.fromDataTransaksi(d))
               .toList();
-          if (mappedTx.isNotEmpty) {
-            await DatabaseHelper.instance.insertOrUpdateTransactions(mappedTx);
-          }
+          await DatabaseHelper.instance.syncTransactions(mappedTx);
           
           return transactionResponse.data;
         } else {

@@ -12,6 +12,8 @@ class TransactionModel {
   final TransactionType type;
   final IconData icon;
   final Color color;
+  final String? accountId;
+  final String? toAccountId;
 
   const TransactionModel({
     required this.id,
@@ -22,6 +24,8 @@ class TransactionModel {
     required this.type,
     required this.icon,
     required this.color,
+    this.accountId,
+    this.toAccountId,
   });
 
   bool get isIncome => type == TransactionType.income;
@@ -85,6 +89,8 @@ class TransactionModel {
       type: type,
       icon: iconData,
       color: color,
+      accountId: data.accountId,
+      toAccountId: data.toAccountId?.toString(),
     );
   }
 }

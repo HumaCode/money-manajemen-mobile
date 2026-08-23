@@ -55,14 +55,6 @@ class AccountModel {
     }
 
     final nameStr = json['name']?.toString() ?? json['account_name']?.toString() ?? '';
-    final nameLower = nameStr.toLowerCase();
-    if (parsedBalance == 0) {
-      if (nameLower.contains('bca')) {
-        parsedBalance = 1950000;
-      } else if (nameLower.contains('bri')) {
-        parsedBalance = 1000000;
-      }
-    }
 
     final accNo = json['account_number']?.toString() ??
         json['accountNumber']?.toString() ??

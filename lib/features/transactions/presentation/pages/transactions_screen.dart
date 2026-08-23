@@ -74,14 +74,12 @@ class _TransactionsScreenState extends State<TransactionsScreen>
     try {
       final apiData = await remoteDS.getTransactions();
       final mapped = apiData.map((d) => TransactionModel.fromDataTransaksi(d)).toList();
-      if (mounted && mapped.isNotEmpty) {
+      if (mounted) {
         setState(() {
           _allTransactions = mapped;
           _isLoading = false;
           _errorMessage = null;
         });
-      } else if (mounted) {
-        setState(() => _isLoading = false);
       }
     } catch (e) {
       if (mounted && _allTransactions.isEmpty) {

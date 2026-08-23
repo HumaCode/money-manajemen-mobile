@@ -109,7 +109,30 @@ class DatabaseHelper {
     return result.map((json) => AccountModel.fromJson(json)).toList();
   }
 
-  // ---- Transactions Operations ----
+  Future<void> syncTransactions(List<TransactionModel> transactions) async {
+    final db = await instance.database;
+    await db.delete('transactions', where: 'is_synced = 1');
+    final batch = db.batch();
+    for (final tx in transactions) {
+      batch.insert(
+        'transactions',
+        {
+          'id': tx.id,
+          'title': tx.title,
+          'category': tx.category,
+          'account_id': tx.accountId,
+          'to_account_id': tx.toAccountId,
+          'amount': tx.amount,
+          'type': tx.type.name,
+          'date': tx.date.toIso8601String(),
+          'is_synced': 1,
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    }
+    await batch.commit(noResult: true);
+  }
+
   Future<void> insertOrUpdateTransactions(List<TransactionModel> transactions) async {
     final db = await instance.database;
     final batch = db.batch();
@@ -120,6 +143,8 @@ class DatabaseHelper {
           'id': tx.id,
           'title': tx.title,
           'category': tx.category,
+          'account_id': tx.accountId,
+          'to_account_id': tx.toAccountId,
           'amount': tx.amount,
           'type': tx.type.name,
           'date': tx.date.toIso8601String(),
@@ -139,6 +164,8 @@ class DatabaseHelper {
         'id': tx.id,
         'title': tx.title,
         'category': tx.category,
+        'account_id': tx.accountId,
+        'to_account_id': tx.toAccountId,
         'amount': tx.amount,
         'type': tx.type.name,
         'date': tx.date.toIso8601String(),
@@ -177,6 +204,8 @@ class DatabaseHelper {
         color: type == TransactionType.income
             ? AppColors.success
             : (type == TransactionType.transfer ? AppColors.info : AppColors.warning),
+        accountId: json['account_id']?.toString(),
+        toAccountId: json['to_account_id']?.toString(),
       );
     }).toList();
   }

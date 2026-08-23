@@ -1,3 +1,5 @@
+import 'package:flutter/services.dart';
+
 String formatRupiah(num amount) {
   final isNegative = amount < 0;
   final absAmount = amount.abs().toInt();
@@ -51,4 +53,41 @@ String formatDateFull(DateTime date) {
   final dayName = _daysIndo[date.weekday - 1];
   final monthName = _monthsIndo[date.month - 1];
   return '$dayName, ${date.day} $monthName ${date.year}';
+}
+
+class ThousandsSeparatorInputFormatter extends TextInputFormatter {
+  static String formatNumberWithDots(String str) {
+    final cleanText = str.replaceAll(RegExp(r'[^\d]'), '');
+    if (cleanText.isEmpty) return '';
+    final buffer = StringBuffer();
+    for (int i = 0; i < cleanText.length; i++) {
+      if (i > 0 && (cleanText.length - i) % 3 == 0) {
+        buffer.write('.');
+      }
+      buffer.write(cleanText[i]);
+    }
+    return buffer.toString();
+  }
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    if (newValue.text.isEmpty) {
+      return newValue;
+    }
+
+    final cleanText = newValue.text.replaceAll(RegExp(r'[^\d]'), '');
+    if (cleanText.isEmpty) {
+      return const TextEditingValue(text: '');
+    }
+
+    final formatted = formatNumberWithDots(cleanText);
+
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
+  }
 }
