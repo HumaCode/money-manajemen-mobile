@@ -29,7 +29,10 @@ class ApiUrl {
   // Master Data
   static const String categories = '$baseUrl/categories';
   static const String accounts = '$baseUrl/accounts';
+  static const String currencies = '$baseUrl/currencies';
 
   // Saving Goals
   static const String savingGoals = '$baseUrl/saving-goals';
+  static String savingGoalDetail(dynamic id) => '$baseUrl/saving-goals/$id';
+  static String savingGoalAddSaving(dynamic id) => '$baseUrl/saving-goals/$id/add-saving';
 }
