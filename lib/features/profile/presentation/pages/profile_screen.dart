@@ -15,6 +15,7 @@ import 'package:money_manajemen/features/auth/data/models/user_model.dart';
 import 'package:money_manajemen/features/profile/presentation/widgets/edit_profile_sheet.dart';
 import 'package:money_manajemen/features/profile/presentation/widgets/two_factor_security_sheet.dart';
 import 'package:money_manajemen/features/profile/presentation/pages/help_screen.dart';
+import 'package:money_manajemen/features/profile/presentation/pages/privacy_policy_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -377,7 +378,11 @@ class _ProfileScreenState extends State<ProfileScreen>
                   icon: Icons.privacy_tip_outlined,
                   label: 'Kebijakan Privasi',
                   color: AppColors.textSecondary,
-                  onTap: () {},
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen()),
+                    );
+                  },
                 ),
                 _MenuTile(
                   icon: Icons.info_outline_rounded,
