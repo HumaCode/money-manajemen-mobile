@@ -447,6 +447,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     _QuickAction('Expense', Icons.arrow_upward_rounded, AppColors.error),
     _QuickAction('Transfer', Icons.swap_horiz_rounded, AppColors.info),
     _QuickAction('Budget', Icons.pie_chart_rounded, AppColors.purple),
+    _QuickAction('Saving', Icons.savings_rounded, AppColors.warning),
   ];
 
   @override
@@ -1092,10 +1093,35 @@ class _DashboardScreenState extends State<DashboardScreen>
       child: SlideTransition(
         position: _slideFor(0.2, 0.55),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: _quickActions
-              .map((a) => _QuickActionButton(action: a))
-              .toList(),
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: _quickActions.map((a) {
+            return _QuickActionButton(
+              action: a,
+              onTap: () {
+                if (a.label == 'Income' || a.label == 'Expense' || a.label == 'Transfer') {
+                  Navigator.of(context).push(
+                    PageRouteBuilder(
+                      transitionDuration: const Duration(milliseconds: 300),
+                      pageBuilder: (_, animation, __) => FadeTransition(
+                        opacity: animation,
+                        child: TransactionsScreen(initialFilter: a.label),
+                      ),
+                    ),
+                  ).then((_) => _loadDashboardData(showLoading: false));
+                } else if (a.label == 'Budget' || a.label == 'Saving') {
+                  Navigator.of(context).push(
+                    PageRouteBuilder(
+                      transitionDuration: const Duration(milliseconds: 300),
+                      pageBuilder: (_, animation, __) => FadeTransition(
+                        opacity: animation,
+                        child: const AnalyticsScreen(),
+                      ),
+                    ),
+                  ).then((_) => _loadDashboardData(showLoading: false));
+                }
+              },
+            );
+          }).toList(),
         ),
       ),
     );
@@ -1717,7 +1743,8 @@ class _MiniStat extends StatelessWidget {
 
 class _QuickActionButton extends StatefulWidget {
   final _QuickAction action;
-  const _QuickActionButton({required this.action});
+  final VoidCallback onTap;
+  const _QuickActionButton({required this.action, required this.onTap});
 
   @override
   State<_QuickActionButton> createState() => _QuickActionButtonState();
@@ -1732,7 +1759,7 @@ class _QuickActionButtonState extends State<_QuickActionButton> {
       onTapDown: (_) => setState(() => _scale = 0.92),
       onTapUp: (_) => setState(() => _scale = 1.0),
       onTapCancel: () => setState(() => _scale = 1.0),
-      onTap: () {},
+      onTap: widget.onTap,
       child: AnimatedScale(
         scale: _scale,
         duration: const Duration(milliseconds: 120),

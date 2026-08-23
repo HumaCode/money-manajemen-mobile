@@ -16,7 +16,8 @@ import '../widgets/transaction_detail_sheet.dart';
 import '../models/transaction_model.dart';
 
 class TransactionsScreen extends StatefulWidget {
-  const TransactionsScreen({super.key});
+  final String? initialFilter;
+  const TransactionsScreen({super.key, this.initialFilter});
 
   @override
   State<TransactionsScreen> createState() => _TransactionsScreenState();
@@ -41,6 +42,10 @@ class _TransactionsScreenState extends State<TransactionsScreen>
   @override
   void initState() {
     super.initState();
+    if (widget.initialFilter != null && _filters.contains(widget.initialFilter)) {
+      _activeFilter = widget.initialFilter!;
+    }
+
     _entrance = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 700),
@@ -268,7 +273,22 @@ class _TransactionsScreenState extends State<TransactionsScreen>
                               ],
                             )
                           : grouped.isEmpty
-                              ? _buildEmptyState()
+                              ? LayoutBuilder(
+                                  builder: (context, constraints) {
+                                    return SingleChildScrollView(
+                                      physics: const AlwaysScrollableScrollPhysics(),
+                                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
+                                      child: ConstrainedBox(
+                                        constraints: BoxConstraints(
+                                          minHeight: constraints.maxHeight - 108,
+                                        ),
+                                        child: IntrinsicHeight(
+                                          child: _buildEmptyState(),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                )
                               : ListView(
                                   padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
                                   children: grouped.entries.map((entry) {
@@ -557,25 +577,96 @@ class _TransactionsScreenState extends State<TransactionsScreen>
   }
 
   Widget _buildEmptyState() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 40),
-      child: AppEmptyState(
-        icon: _searchController.text.isNotEmpty
-            ? Icons.search_off_rounded
-            : Icons.receipt_long_rounded,
-        title: _searchController.text.isNotEmpty
-            ? 'Hasil Tidak Ditemukan'
-            : 'Belum Ada Transaksi',
-        message: _searchController.text.isNotEmpty
-            ? 'Tidak ditemukan transaksi dengan kata kunci "${_searchController.text}".'
-            : 'Belum ada transaksi pada kategori ini. Mulai tambahkan transaksi baru!',
-        buttonText: 'Tambah Transaksi',
-        onButtonPressed: () async {
-          final newTx = await AddTransactionSheet.show(context);
-          if (newTx != null && mounted) {
-            _fetchTransactions();
-          }
-        },
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+      decoration: BoxDecoration(
+        color: AppColors.bgCard.withValues(alpha: 0.85),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppColors.cardBorder),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppColors.accent.withValues(alpha: 0.12),
+              border: Border.all(
+                color: AppColors.accent.withValues(alpha: 0.3),
+                width: 1.5,
+              ),
+            ),
+            child: Icon(
+              _searchController.text.isNotEmpty
+                  ? Icons.search_off_rounded
+                  : Icons.receipt_long_rounded,
+              size: 28,
+              color: AppColors.accent,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            _searchController.text.isNotEmpty
+                ? 'Hasil Tidak Ditemukan'
+                : 'Belum Ada Transaksi',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontFamily: AppTextStyles.fontFamily,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            _searchController.text.isNotEmpty
+                ? 'Tidak ditemukan transaksi dengan kata kunci "${_searchController.text}".'
+                : 'Belum ada transaksi pada kategori ini. Mulai tambahkan transaksi baru!',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontFamily: AppTextStyles.fontFamily,
+              fontSize: 12.5,
+              color: AppColors.textSecondary,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 20),
+          GestureDetector(
+            onTap: () async {
+              final newTx = await AddTransactionSheet.show(context);
+              if (newTx != null && mounted) {
+                _fetchTransactions();
+              }
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              decoration: BoxDecoration(
+                color: AppColors.accent.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppColors.accent.withValues(alpha: 0.4)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: const [
+                  Icon(Icons.add_rounded, size: 18, color: AppColors.accent),
+                  SizedBox(width: 6),
+                  Text(
+                    'Tambah Transaksi',
+                    style: TextStyle(
+                      fontFamily: AppTextStyles.fontFamily,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.accent,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
