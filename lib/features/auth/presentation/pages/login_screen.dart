@@ -13,6 +13,7 @@ import 'register_screen.dart';
 import 'package:money_manajemen/core/services/biometric_service.dart';
 import 'package:money_manajemen/features/auth/data/datasources/auth_local_data_source.dart';
 import 'package:money_manajemen/core/widgets/dynamic_island_toast.dart';
+import 'package:money_manajemen/features/auth/presentation/widgets/login_2fa_otp_sheet.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -156,6 +157,31 @@ class _LoginScreenState extends State<LoginScreen>
               type: DynamicToastType.error,
             );
           } else if (state is AuthSuccess) {
+            if (state.userModel.data?.requires2fa == true) {
+              Login2faOtpSheet.show(
+                context,
+                userId: state.userModel.data!.userId,
+                maskedPhone: state.userModel.data!.maskedPhone,
+                onSuccess: (userModel) {
+                  DynamicIslandToast.show(
+                    context,
+                    message: 'Login 2FA Berhasil!',
+                    type: DynamicToastType.success,
+                  );
+                  Navigator.of(context).pushReplacement(
+                    PageRouteBuilder(
+                      transitionDuration: const Duration(milliseconds: 500),
+                      pageBuilder: (_, animation, __) => FadeTransition(
+                        opacity: animation,
+                        child: const DashboardScreen(),
+                      ),
+                    ),
+                  );
+                },
+              );
+              return;
+            }
+
             DynamicIslandToast.show(
               context,
               message: state.userModel.message.isNotEmpty

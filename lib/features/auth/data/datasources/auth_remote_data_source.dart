@@ -53,6 +53,9 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
 
       if (response.statusCode == 200 && responseJson['success'] == true) {
         final userModel = UserModel.fromJson(responseJson);
+        if (userModel.data?.requires2fa == true) {
+          return userModel;
+        }
         if (userModel.data?.user != null) {
           await AuthLocalDataSourceImpl().saveUser(userModel.data!.user);
         }

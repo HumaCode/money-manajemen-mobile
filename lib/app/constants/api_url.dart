@@ -4,10 +4,17 @@ class ApiUrl {
 
   // Auth
   static const String login = '$baseUrl/auth/login';
+  static const String loginVerify2fa = '$baseUrl/auth/login/verify-2fa';
   static const String me = '$baseUrl/auth/me';
   static const String updateProfile = '$baseUrl/auth/profile';
   static const String updatePassword = '$baseUrl/auth/password';
   static const String logout = '$baseUrl/auth/logout';
+
+  // 2FA Security
+  static const String twoFactorStatus = '$baseUrl/auth/2fa/status';
+  static const String twoFactorSendOtp = '$baseUrl/auth/2fa/send-otp';
+  static const String twoFactorVerifyOtp = '$baseUrl/auth/2fa/verify-otp';
+  static const String twoFactorDisable = '$baseUrl/auth/2fa/disable';
 
   // Dashboard Summary
   static const String walletSummary = '$baseUrl/wallet-summary';

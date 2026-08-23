@@ -30,11 +30,17 @@ class AuthData {
   final String token;
   final String tokenType;
   final UserDetail user;
+  final bool requires2fa;
+  final String userId;
+  final String maskedPhone;
 
   AuthData({
     required this.token,
     required this.tokenType,
     required this.user,
+    this.requires2fa = false,
+    this.userId = '',
+    this.maskedPhone = '',
   });
 
   factory AuthData.fromJson(Map<String, dynamic> json) {
@@ -42,6 +48,9 @@ class AuthData {
       token: json['token'] ?? '',
       tokenType: json['token_type'] ?? 'Bearer',
       user: UserDetail.fromJson(json['user'] ?? {}),
+      requires2fa: json['requires_2fa'] ?? false,
+      userId: json['user_id']?.toString() ?? '',
+      maskedPhone: json['masked_phone'] ?? '',
     );
   }
 

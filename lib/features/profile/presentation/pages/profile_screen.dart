@@ -13,6 +13,7 @@ import 'package:money_manajemen/features/auth/data/datasources/auth_local_data_s
 import 'package:money_manajemen/features/auth/data/datasources/auth_remote_data_source.dart';
 import 'package:money_manajemen/features/auth/data/models/user_model.dart';
 import 'package:money_manajemen/features/profile/presentation/widgets/edit_profile_sheet.dart';
+import 'package:money_manajemen/features/profile/presentation/widgets/two_factor_security_sheet.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -305,7 +306,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                   icon: Icons.shield_outlined,
                   label: 'Keamanan & 2FA',
                   color: AppColors.success,
-                  onTap: () {},
+                  onTap: () {
+                    TwoFactorSecuritySheet.show(context);
+                  },
                 ),
                 _MenuTile(
                   icon: Icons.fingerprint_rounded,
