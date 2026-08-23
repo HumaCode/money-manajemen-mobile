@@ -6,6 +6,7 @@ import 'package:money_manajemen/core/widgets/app_text_field.dart';
 import 'package:money_manajemen/core/widgets/dynamic_island_toast.dart';
 import 'package:money_manajemen/core/widgets/primary_button.dart';
 import 'package:money_manajemen/core/utils/formatters.dart';
+import 'package:money_manajemen/core/database/database_helper.dart';
 import 'package:money_manajemen/features/auth/data/datasources/auth_local_data_source.dart';
 import 'package:money_manajemen/features/transactions/data/datasources/master_remote_data_source.dart';
 import 'package:money_manajemen/features/transactions/data/datasources/transaction_remote_data_source.dart';
@@ -246,6 +247,16 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
       } else {
         await masterDS.createTransaction(payload);
       }
+
+      final isEdit = widget.transactionToEdit != null;
+      await DatabaseHelper.instance.addActivity(
+        title: isEdit ? 'Edit Transaksi' : 'Transaksi Baru',
+        message: isEdit
+            ? 'Transaksi "${_titleController.text.trim()}" sebesar ${formatRupiah(amount)} berhasil diperbarui.'
+            : 'Transaksi "${_titleController.text.trim()}" sebesar ${formatRupiah(amount)} berhasil ditambahkan.',
+        iconType: 'transaction',
+        colorHex: _selectedType == TransactionType.income ? '#34d399' : '#f87171',
+      );
 
       // Re-sync SQFlite database with latest data from server (transactions & account balances)
       try {

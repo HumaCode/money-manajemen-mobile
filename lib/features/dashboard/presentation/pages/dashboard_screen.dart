@@ -383,65 +383,7 @@ class _DashboardScreenState extends State<DashboardScreen>
 
     int netTotalBalance = baseAccountsBalance;
 
-    final isBioEnabled = await BiometricService.isBiometricEnabled();
-    List<NotificationItem> dynamicNotifs = [];
-
-    if (localAccounts.isNotEmpty) {
-      final accSummary = localAccounts.map((a) => '${a.name} (${formatRupiah(a.balance)})').join(' & ');
-      dynamicNotifs.add(
-        NotificationItem(
-          id: 'acc_sync',
-          title: 'Sinkronisasi Rekening',
-          message: 'Saldo akun $accSummary tersimpan aman di SQLite lokal.',
-          time: DateTime.now().subtract(const Duration(minutes: 5)),
-          icon: Icons.account_balance_wallet_rounded,
-          iconColor: AppColors.success,
-          isRead: false,
-        ),
-      );
-    }
-
-    if (categories.isNotEmpty) {
-      final topCat = categories.first;
-      final percent = expense > 0 ? ((topCat.amount / expense) * 100).toInt() : 0;
-      dynamicNotifs.add(
-        NotificationItem(
-          id: 'budget_analysis',
-          title: 'Analisis Pengeluaran Real',
-          message: 'Pengeluaran terbesar pada "${topCat.name}" sebesar ${formatRupiah(topCat.amount)} ($percent% dari total pengeluaran).',
-          time: DateTime.now().subtract(const Duration(hours: 1)),
-          icon: Icons.pie_chart_outline_rounded,
-          iconColor: AppColors.warning,
-          isRead: false,
-        ),
-      );
-    } else {
-      dynamicNotifs.add(
-        NotificationItem(
-          id: 'budget_analysis',
-          title: 'Perkembangan Anggaran',
-          message: 'Belum ada transaksi pengeluaran hari ini. Kelola dan pertahankan kontrol keuanganmu!',
-          time: DateTime.now().subtract(const Duration(hours: 1)),
-          icon: Icons.pie_chart_outline_rounded,
-          iconColor: AppColors.info,
-          isRead: true,
-        ),
-      );
-    }
-
-    dynamicNotifs.add(
-      NotificationItem(
-        id: 'bio_security',
-        title: 'Status Keamanan Akun',
-        message: isBioEnabled
-            ? 'Fitur login biometrik sidik jari (Biometric Auth) telah aktif pada perangkat ini.'
-            : 'Login biometrik sidik jari sedang nonaktif. Aktifkan di Profil untuk login cepat.',
-        time: DateTime.now().subtract(const Duration(hours: 3)),
-        icon: Icons.fingerprint_rounded,
-        iconColor: isBioEnabled ? AppColors.accent : AppColors.textSecondary,
-        isRead: isBioEnabled,
-      ),
-    );
+    final dynamicNotifs = await DatabaseHelper.instance.getActivities();
 
     if (mounted) {
       setState(() {
@@ -790,6 +732,13 @@ class _DashboardScreenState extends State<DashboardScreen>
 
           await masterDS.createTransaction(payload);
         }
+
+        await DatabaseHelper.instance.addActivity(
+          title: 'Pindai Struk AI',
+          message: 'Berhasil menyimpan ${items.length} item transaksi dari struk belanja.',
+          iconType: 'scan',
+          colorHex: '#00FFA3',
+        );
 
         if (mounted) {
           DynamicIslandToast.show(

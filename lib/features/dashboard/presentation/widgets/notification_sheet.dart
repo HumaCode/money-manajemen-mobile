@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:money_manajemen/app/theme/app_theme.dart';
 import 'package:money_manajemen/core/utils/formatters.dart';
+import 'package:money_manajemen/core/database/database_helper.dart';
 
 class NotificationItem {
   final String id;
@@ -61,19 +62,21 @@ class _NotificationSheetState extends State<NotificationSheet> {
     _items = List.from(widget.initialNotifications);
   }
 
-  void _markAllRead() {
+  void _markAllRead() async {
     setState(() {
       for (var item in _items) {
         item.isRead = true;
       }
     });
+    await DatabaseHelper.instance.markAllActivitiesAsRead();
     widget.onAllRead();
   }
 
-  void _toggleRead(NotificationItem item) {
+  void _toggleRead(NotificationItem item) async {
     setState(() {
       item.isRead = true;
     });
+    await DatabaseHelper.instance.markActivityAsRead(item.id);
     if (!_items.any((n) => !n.isRead)) {
       widget.onAllRead();
     }

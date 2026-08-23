@@ -5,6 +5,7 @@ import 'package:money_manajemen/app/theme/app_theme.dart';
 import 'package:money_manajemen/features/transactions/data/models/category_model.dart';
 import 'package:money_manajemen/features/transactions/data/models/account_model.dart';
 import 'package:money_manajemen/features/transactions/data/models/transaction_model.dart';
+import 'package:money_manajemen/features/dashboard/presentation/widgets/notification_sheet.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
@@ -64,6 +65,19 @@ class DatabaseHelper {
         type TEXT NOT NULL,
         date TEXT NOT NULL,
         is_synced INTEGER NOT NULL DEFAULT 1
+      )
+    ''');
+
+    // Activities Table
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS activities (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        message TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        icon_type TEXT NOT NULL,
+        color_hex TEXT NOT NULL,
+        is_read INTEGER NOT NULL DEFAULT 0
       )
     ''');
   }
@@ -220,5 +234,127 @@ class DatabaseHelper {
     await db.delete('categories');
     await db.delete('accounts');
     await db.delete('transactions');
+    await db.delete('activities');
+  }
+
+  // ---- Activities / Notifications Operations ----
+  Future<void> addActivity({
+    required String title,
+    required String message,
+    String iconType = 'info',
+    String colorHex = '#00FFA3',
+  }) async {
+    final db = await instance.database;
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS activities (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        message TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        icon_type TEXT NOT NULL,
+        color_hex TEXT NOT NULL,
+        is_read INTEGER NOT NULL DEFAULT 0
+      )
+    ''');
+
+    await db.insert(
+      'activities',
+      {
+        'id': DateTime.now().millisecondsSinceEpoch.toString(),
+        'title': title,
+        'message': message,
+        'created_at': DateTime.now().toIso8601String(),
+        'icon_type': iconType,
+        'color_hex': colorHex,
+        'is_read': 0,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<List<NotificationItem>> getActivities() async {
+    final db = await instance.database;
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS activities (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        message TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        icon_type TEXT NOT NULL,
+        color_hex TEXT NOT NULL,
+        is_read INTEGER NOT NULL DEFAULT 0
+      )
+    ''');
+
+    final result = await db.query('activities', orderBy: 'created_at DESC');
+    if (result.isEmpty) {
+      await addActivity(
+        title: 'Sinkronisasi Rekening',
+        message: 'Berhasil melakukan sinkronisasi data rekening & saldo dengan server.',
+        iconType: 'account',
+        colorHex: '#00FFA3',
+      );
+      await addActivity(
+        title: 'Selamat Datang',
+        message: 'Aplikasi Money Management siap digunakan untuk mencatat keuangan Anda.',
+        iconType: 'info',
+        colorHex: '#60a5fa',
+      );
+      final seeded = await db.query('activities', orderBy: 'created_at DESC');
+      return _mapActivityRows(seeded);
+    }
+    return _mapActivityRows(result);
+  }
+
+  List<NotificationItem> _mapActivityRows(List<Map<String, dynamic>> rows) {
+    return rows.map((json) {
+      IconData iconData = Icons.notifications_rounded;
+      final type = json['icon_type']?.toString() ?? 'info';
+      if (type == 'scan') {
+        iconData = Icons.document_scanner_rounded;
+      } else if (type == 'transaction') {
+        iconData = Icons.receipt_long_rounded;
+      } else if (type == 'account') {
+        iconData = Icons.account_balance_wallet_rounded;
+      } else if (type == 'security') {
+        iconData = Icons.fingerprint_rounded;
+      } else if (type == 'analytics') {
+        iconData = Icons.pie_chart_outline_rounded;
+      }
+
+      Color iconColor = AppColors.accent;
+      final hex = json['color_hex']?.toString() ?? '#00FFA3';
+      try {
+        final cleanHex = hex.replaceAll('#', '');
+        iconColor = Color(int.parse('FF$cleanHex', radix: 16));
+      } catch (_) {}
+
+      DateTime parsedTime = DateTime.now();
+      if (json['created_at'] != null) {
+        try {
+          parsedTime = DateTime.parse(json['created_at'].toString());
+        } catch (_) {}
+      }
+
+      return NotificationItem(
+        id: json['id'].toString(),
+        title: json['title'].toString(),
+        message: json['message'].toString(),
+        time: parsedTime,
+        icon: iconData,
+        iconColor: iconColor,
+        isRead: (json['is_read'] as int? ?? 0) == 1,
+      );
+    }).toList();
+  }
+
+  Future<void> markAllActivitiesAsRead() async {
+    final db = await instance.database;
+    await db.update('activities', {'is_read': 1});
+  }
+
+  Future<void> markActivityAsRead(String id) async {
+    final db = await instance.database;
+    await db.update('activities', {'is_read': 1}, where: 'id = ?', whereArgs: [id]);
   }
 }
