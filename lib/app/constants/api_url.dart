@@ -34,5 +34,6 @@ class ApiUrl {
   // Saving Goals
   static const String savingGoals = '$baseUrl/saving-goals';
   static String savingGoalDetail(dynamic id) => '$baseUrl/saving-goals/$id';
-  static String savingGoalAddSaving(dynamic id) => '$baseUrl/saving-goals/$id/add-saving';
+  static String savingGoalAddSaving(dynamic id) =>
+      '$baseUrl/saving-goals/$id/add-saving';
 }

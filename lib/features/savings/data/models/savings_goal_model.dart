@@ -5,6 +5,40 @@ SavingGoal savingGoalFromJson(String str) =>
 
 String savingGoalToJson(SavingGoal data) => json.encode(data.toJson());
 
+int _parseInt(dynamic val, [int defaultValue = 0]) {
+  if (val == null) return defaultValue;
+  if (val is int) return val;
+  if (val is double) return val.toInt();
+  if (val is String) {
+    final parsedDouble = double.tryParse(val);
+    if (parsedDouble != null) return parsedDouble.toInt();
+    final parsedInt = int.tryParse(val);
+    if (parsedInt != null) return parsedInt;
+  }
+  return defaultValue;
+}
+
+double _parseDouble(dynamic val, [double defaultValue = 0.0]) {
+  if (val == null) return defaultValue;
+  if (val is double) return val;
+  if (val is int) return val.toDouble();
+  if (val is String) {
+    final parsed = double.tryParse(val);
+    if (parsed != null) return parsed;
+  }
+  return defaultValue;
+}
+
+DateTime _parseDate(dynamic val) {
+  if (val == null) return DateTime.now();
+  if (val is DateTime) return val;
+  try {
+    return DateTime.parse(val.toString());
+  } catch (_) {
+    return DateTime.now();
+  }
+}
+
 class SavingGoal {
   final bool success;
   final String message;
@@ -17,16 +51,16 @@ class SavingGoal {
   });
 
   factory SavingGoal.fromJson(Map<String, dynamic> json) => SavingGoal(
-    success: json["success"],
-    message: json["message"],
-    data: Data.fromJson(json["data"]),
-  );
+        success: json["success"] ?? true,
+        message: json["message"]?.toString() ?? '',
+        data: Data.fromJson(json["data"] ?? {}),
+      );
 
   Map<String, dynamic> toJson() => {
-    "success": success,
-    "message": message,
-    "data": data.toJson(),
-  };
+        "success": success,
+        "message": message,
+        "data": data.toJson(),
+      };
 }
 
 class Data {
@@ -72,48 +106,58 @@ class Data {
     required this.updatedAt,
   });
 
-  factory Data.fromJson(Map<String, dynamic> json) => Data(
-    id: json["id"],
-    name: json["name"],
-    description: json["description"],
-    accountId: json["account_id"],
-    accountName: json["account_name"],
-    currencyId: json["currency_id"],
-    currencyCode: json["currency_code"],
-    currencySymbol: json["currency_symbol"],
-    targetAmount: json["target_amount"],
-    currentAmount: json["current_amount"],
-    remainingAmount: json["remaining_amount"],
-    monthlyTarget: json["monthly_target"],
-    progressPercentage: json["progress_percentage"]?.toDouble(),
-    targetDate: DateTime.parse(json["target_date"]),
-    status: json["status"],
-    icon: json["icon"],
-    color: json["color"],
-    createdAt: DateTime.parse(json["created_at"]),
-    updatedAt: DateTime.parse(json["updated_at"]),
-  );
+  factory Data.fromJson(Map<String, dynamic> json) {
+    final target = _parseInt(json["target_amount"]);
+    final current = _parseInt(json["current_amount"]);
+    final calcRemaining = target - current;
+    final remaining = _parseInt(json["remaining_amount"], calcRemaining < 0 ? 0 : calcRemaining);
+    final calcPct = target > 0 ? (current / target) : 0.0;
+    final rawPct = _parseDouble(json["progress_percentage"], calcPct);
+    final double progressPct = rawPct > 1.0 ? (rawPct / 100.0).clamp(0.0, 1.0) : rawPct.clamp(0.0, 1.0);
+
+    return Data(
+      id: json["id"]?.toString() ?? '',
+      name: json["name"]?.toString() ?? '',
+      description: json["description"]?.toString() ?? '',
+      accountId: json["account_id"]?.toString() ?? '',
+      accountName: json["account_name"]?.toString() ?? 'Kas Utama',
+      currencyId: json["currency_id"]?.toString() ?? 'IDR',
+      currencyCode: json["currency_code"]?.toString() ?? 'IDR',
+      currencySymbol: json["currency_symbol"]?.toString() ?? 'Rp',
+      targetAmount: target,
+      currentAmount: current,
+      remainingAmount: remaining < 0 ? 0 : remaining,
+      monthlyTarget: _parseInt(json["monthly_target"]),
+      progressPercentage: progressPct.clamp(0.0, 1.0),
+      targetDate: _parseDate(json["target_date"]),
+      status: json["status"]?.toString() ?? 'active',
+      icon: json["icon"]?.toString() ?? '🎯',
+      color: json["color"]?.toString() ?? '#00FFA3',
+      createdAt: _parseDate(json["created_at"]),
+      updatedAt: _parseDate(json["updated_at"]),
+    );
+  }
 
   Map<String, dynamic> toJson() => {
-    "id": id,
-    "name": name,
-    "description": description,
-    "account_id": accountId,
-    "account_name": accountName,
-    "currency_id": currencyId,
-    "currency_code": currencyCode,
-    "currency_symbol": currencySymbol,
-    "target_amount": targetAmount,
-    "current_amount": currentAmount,
-    "remaining_amount": remainingAmount,
-    "monthly_target": monthlyTarget,
-    "progress_percentage": progressPercentage,
-    "target_date":
-        "${targetDate.year.toString().padLeft(4, '0')}-${targetDate.month.toString().padLeft(2, '0')}-${targetDate.day.toString().padLeft(2, '0')}",
-    "status": status,
-    "icon": icon,
-    "color": color,
-    "created_at": createdAt.toIso8601String(),
-    "updated_at": updatedAt.toIso8601String(),
-  };
+        "id": id,
+        "name": name,
+        "description": description,
+        "account_id": accountId,
+        "account_name": accountName,
+        "currency_id": currencyId,
+        "currency_code": currencyCode,
+        "currency_symbol": currencySymbol,
+        "target_amount": targetAmount,
+        "current_amount": currentAmount,
+        "remaining_amount": remainingAmount,
+        "monthly_target": monthlyTarget,
+        "progress_percentage": progressPercentage,
+        "target_date":
+            "${targetDate.year.toString().padLeft(4, '0')}-${targetDate.month.toString().padLeft(2, '0')}-${targetDate.day.toString().padLeft(2, '0')}",
+        "status": status,
+        "icon": icon,
+        "color": color,
+        "created_at": createdAt.toIso8601String(),
+        "updated_at": updatedAt.toIso8601String(),
+      };
 }

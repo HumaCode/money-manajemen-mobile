@@ -66,13 +66,33 @@ class Contribution {
   });
 
   factory Contribution.fromJson(Map<String, dynamic> json) => Contribution(
-    savingsGoalId: json["savings_goal_id"],
-    amount: json["amount"],
-    contributedAt: DateTime.parse(json["contributed_at"]),
-    notes: json["notes"],
-    id: json["id"],
-    savingsGoal: SavingsGoal.fromJson(json["savings_goal"]),
-  );
+        savingsGoalId: json["savings_goal_id"]?.toString() ?? '',
+        amount: json["amount"]?.toString() ?? '0',
+        contributedAt: json["contributed_at"] != null
+            ? DateTime.tryParse(json["contributed_at"].toString()) ?? DateTime.now()
+            : DateTime.now(),
+        notes: json["notes"]?.toString() ?? '',
+        id: json["id"]?.toString() ?? '',
+        savingsGoal: json["savings_goal"] != null
+            ? SavingsGoal.fromJson(json["savings_goal"])
+            : SavingsGoal(
+                id: json["savings_goal_id"]?.toString() ?? '',
+                userId: '',
+                accountId: '',
+                currencyId: 'IDR',
+                name: '',
+                description: '',
+                targetAmount: '0',
+                currentAmount: '0',
+                monthlyTarget: '0',
+                targetDate: DateTime.now(),
+                status: 'active',
+                icon: 'savings',
+                color: '#00FFA3',
+                createdAt: DateTime.now(),
+                updatedAt: DateTime.now(),
+              ),
+      );
 
   Map<String, dynamic> toJson() => {
     "savings_goal_id": savingsGoalId,

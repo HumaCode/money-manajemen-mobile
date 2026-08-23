@@ -17,6 +17,20 @@ String formatRupiah(num amount) {
   return isNegative ? '-Rp $formatted' : 'Rp $formatted';
 }
 
+int parseAmountString(dynamic val) {
+  if (val == null) return 0;
+  if (val is int) return val;
+  if (val is double) return val.toInt();
+  final s = val.toString().trim();
+  if (s.isEmpty) return 0;
+
+  final parsedDouble = double.tryParse(s);
+  if (parsedDouble != null) return parsedDouble.toInt();
+
+  final clean = s.replaceAll(RegExp(r'[^\d]'), '');
+  return int.tryParse(clean) ?? 0;
+}
+
 const List<String> _monthsIndo = [
   'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
   'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'

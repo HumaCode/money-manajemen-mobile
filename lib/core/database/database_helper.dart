@@ -6,6 +6,7 @@ import 'package:money_manajemen/features/transactions/data/models/category_model
 import 'package:money_manajemen/features/transactions/data/models/account_model.dart';
 import 'package:money_manajemen/features/transactions/data/models/transaction_model.dart';
 import 'package:money_manajemen/features/dashboard/presentation/widgets/notification_sheet.dart';
+import 'package:money_manajemen/features/savings/data/models/savings_goal_model.dart' as saving_model;
 
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
@@ -78,6 +79,31 @@ class DatabaseHelper {
         icon_type TEXT NOT NULL,
         color_hex TEXT NOT NULL,
         is_read INTEGER NOT NULL DEFAULT 0
+      )
+    ''');
+
+    // Saving Goals Table
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS saving_goals (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT,
+        account_id TEXT,
+        account_name TEXT,
+        currency_id TEXT,
+        currency_code TEXT,
+        currency_symbol TEXT,
+        target_amount INTEGER NOT NULL,
+        current_amount INTEGER NOT NULL,
+        remaining_amount INTEGER NOT NULL,
+        monthly_target INTEGER NOT NULL,
+        progress_percentage REAL NOT NULL,
+        target_date TEXT,
+        status TEXT NOT NULL,
+        icon TEXT,
+        color TEXT,
+        created_at TEXT,
+        updated_at TEXT
       )
     ''');
   }
@@ -356,5 +382,74 @@ class DatabaseHelper {
   Future<void> markActivityAsRead(String id) async {
     final db = await instance.database;
     await db.update('activities', {'is_read': 1}, where: 'id = ?', whereArgs: [id]);
+  }
+
+  // ---- Saving Goals Local SQLite Sync ----
+  Future<void> replaceSavingGoals(List<saving_model.Data> goals) async {
+    final db = await instance.database;
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS saving_goals (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT,
+        account_id TEXT,
+        account_name TEXT,
+        currency_id TEXT,
+        currency_code TEXT,
+        currency_symbol TEXT,
+        target_amount INTEGER NOT NULL,
+        current_amount INTEGER NOT NULL,
+        remaining_amount INTEGER NOT NULL,
+        monthly_target INTEGER NOT NULL,
+        progress_percentage REAL NOT NULL,
+        target_date TEXT,
+        status TEXT NOT NULL,
+        icon TEXT,
+        color TEXT,
+        created_at TEXT,
+        updated_at TEXT
+      )
+    ''');
+
+    final batch = db.batch();
+    batch.delete('saving_goals');
+    for (final goal in goals) {
+      batch.insert(
+        'saving_goals',
+        goal.toJson(),
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    }
+    await batch.commit(noResult: true);
+  }
+
+  Future<List<saving_model.Data>> getSavingGoals() async {
+    final db = await instance.database;
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS saving_goals (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT,
+        account_id TEXT,
+        account_name TEXT,
+        currency_id TEXT,
+        currency_code TEXT,
+        currency_symbol TEXT,
+        target_amount INTEGER NOT NULL,
+        current_amount INTEGER NOT NULL,
+        remaining_amount INTEGER NOT NULL,
+        monthly_target INTEGER NOT NULL,
+        progress_percentage REAL NOT NULL,
+        target_date TEXT,
+        status TEXT NOT NULL,
+        icon TEXT,
+        color TEXT,
+        created_at TEXT,
+        updated_at TEXT
+      )
+    ''');
+
+    final result = await db.query('saving_goals', orderBy: 'created_at DESC');
+    return result.map((json) => saving_model.Data.fromJson(json)).toList();
   }
 }

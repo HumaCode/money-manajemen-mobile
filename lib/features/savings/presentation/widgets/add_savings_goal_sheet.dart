@@ -1,9 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:money_manajemen/app/theme/app_theme.dart';
+import 'package:money_manajemen/core/utils/formatters.dart';
 import 'package:money_manajemen/core/widgets/app_text_field.dart';
 import 'package:money_manajemen/core/widgets/primary_button.dart';
 import 'package:money_manajemen/core/widgets/dynamic_island_toast.dart';
+import 'package:money_manajemen/core/database/database_helper.dart';
+import 'package:money_manajemen/features/auth/data/datasources/auth_local_data_source.dart';
+import 'package:money_manajemen/features/transactions/data/models/account_model.dart';
+import 'package:money_manajemen/features/transactions/data/datasources/master_remote_data_source.dart';
 import '../../data/models/savings_goal_model.dart';
+import '../../data/datasources/savings_remote_data_source.dart';
 
 class AddSavingsGoalSheet extends StatefulWidget {
   final Data? goalToEdit;
@@ -32,7 +39,9 @@ class _AddSavingsGoalSheetState extends State<AddSavingsGoalSheet> {
   final _currentAmountController = TextEditingController();
   final _notesController = TextEditingController();
 
-  final bool _isLoading = false;
+  List<AccountModel> _accounts = [];
+  AccountModel? _selectedAccount;
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -43,6 +52,34 @@ class _AddSavingsGoalSheetState extends State<AddSavingsGoalSheet> {
       _currentAmountController.text = widget.goalToEdit!.currentAmount.toString();
       _notesController.text = widget.goalToEdit!.description;
     }
+    _loadAccounts();
+  }
+
+  Future<void> _loadAccounts() async {
+    final cached = await DatabaseHelper.instance.getAccounts();
+    if (cached.isNotEmpty && mounted) {
+      setState(() {
+        _accounts = cached;
+        _selectedAccount = cached.first;
+      });
+    }
+
+    try {
+      final masterDS = MasterRemoteDataSourceImpl(
+        client: http.Client(),
+        localDataSource: AuthLocalDataSourceImpl(),
+      );
+      final remoteAccs = await masterDS.getAccounts();
+      if (remoteAccs.isNotEmpty && mounted) {
+        setState(() {
+          _accounts = remoteAccs;
+          _selectedAccount = remoteAccs.firstWhere(
+            (a) => a.id == widget.goalToEdit?.accountId,
+            orElse: () => remoteAccs.first,
+          );
+        });
+      }
+    } catch (_) {}
   }
 
   @override
@@ -54,7 +91,7 @@ class _AddSavingsGoalSheetState extends State<AddSavingsGoalSheet> {
     super.dispose();
   }
 
-  void _handleSave() {
+  Future<void> _handleSave() async {
     FocusScope.of(context).unfocus();
 
     final title = _titleController.text.trim();
@@ -70,34 +107,55 @@ class _AddSavingsGoalSheetState extends State<AddSavingsGoalSheet> {
       return;
     }
 
-    final targetAmount = int.tryParse(targetStr.replaceAll('.', '')) ?? 0;
-    final currentAmount = int.tryParse(_currentAmountController.text.replaceAll('.', '')) ?? 0;
-    final remaining = targetAmount - currentAmount;
-    final pct = targetAmount > 0 ? (currentAmount / targetAmount) : 0.0;
+    setState(() => _isLoading = true);
 
-    final goal = Data(
-      id: widget.goalToEdit?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
-      name: title,
-      description: _notesController.text.trim(),
-      accountId: widget.goalToEdit?.accountId ?? '',
-      accountName: widget.goalToEdit?.accountName ?? 'Kas Utama',
-      currencyId: widget.goalToEdit?.currencyId ?? 'IDR',
-      currencyCode: widget.goalToEdit?.currencyCode ?? 'IDR',
-      currencySymbol: widget.goalToEdit?.currencySymbol ?? 'Rp',
-      targetAmount: targetAmount,
-      currentAmount: currentAmount,
-      remainingAmount: remaining < 0 ? 0 : remaining,
-      monthlyTarget: widget.goalToEdit?.monthlyTarget ?? 0,
-      progressPercentage: pct > 1.0 ? 1.0 : pct,
-      targetDate: widget.goalToEdit?.targetDate ?? DateTime.now().add(const Duration(days: 30)),
-      status: widget.goalToEdit?.status ?? 'active',
-      icon: widget.goalToEdit?.icon ?? 'savings',
-      color: widget.goalToEdit?.color ?? '#00FFA3',
-      createdAt: widget.goalToEdit?.createdAt ?? DateTime.now(),
-      updatedAt: DateTime.now(),
+    final targetAmount = parseAmountString(targetStr);
+    final currentAmount = parseAmountString(_currentAmountController.text);
+
+    final dataSource = SavingsRemoteDataSourceImpl(
+      client: http.Client(),
+      localDataSource: AuthLocalDataSourceImpl(),
     );
 
-    Navigator.of(context).pop(goal);
+    Data? resultGoal;
+    String errorMessage = 'Gagal menyimpan target tabungan ke server database';
+
+    try {
+      if (widget.goalToEdit != null) {
+        resultGoal = await dataSource.updateSavingGoal(
+          widget.goalToEdit!.id,
+          name: title,
+          targetAmount: targetAmount,
+          currentAmount: currentAmount,
+          description: _notesController.text.trim(),
+        );
+      } else {
+        resultGoal = await dataSource.createSavingGoal(
+          name: title,
+          targetAmount: targetAmount,
+          currentAmount: currentAmount,
+          description: _notesController.text.trim(),
+          accountId: _selectedAccount?.id,
+          currencyId: _selectedAccount?.currency,
+        );
+      }
+    } catch (e) {
+      errorMessage = e.toString().replaceAll('Exception: ', '');
+    }
+
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+
+    if (resultGoal != null) {
+      Navigator.of(context).pop(resultGoal);
+    } else {
+      DynamicIslandToast.show(
+        context,
+        title: 'Gagal Menyimpan ❌',
+        message: errorMessage,
+        type: DynamicToastType.error,
+      );
+    }
   }
 
   @override
@@ -171,10 +229,16 @@ class _AddSavingsGoalSheetState extends State<AddSavingsGoalSheet> {
             ),
             const SizedBox(height: 14),
 
+            if (_accounts.isNotEmpty) ...[
+              _buildAccountDropdown(),
+              const SizedBox(height: 14),
+            ],
+
             AppTextField(
               label: 'Target Nominal (Rp)',
               icon: Icons.payments_outlined,
               keyboardType: TextInputType.number,
+              inputFormatters: [ThousandsSeparatorInputFormatter()],
               controller: _targetAmountController,
             ),
             const SizedBox(height: 14),
@@ -183,6 +247,7 @@ class _AddSavingsGoalSheetState extends State<AddSavingsGoalSheet> {
               label: 'Saldo Awal Tabungan (Rp opsional)',
               icon: Icons.account_balance_wallet_outlined,
               keyboardType: TextInputType.number,
+              inputFormatters: [ThousandsSeparatorInputFormatter()],
               controller: _currentAmountController,
             ),
             const SizedBox(height: 14),
@@ -202,6 +267,98 @@ class _AddSavingsGoalSheetState extends State<AddSavingsGoalSheet> {
             const SizedBox(height: 10),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildAccountDropdown() {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.bgInput,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppColors.textSecondary.withValues(alpha: 0.3),
+          width: 1.5,
+        ),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.account_balance_wallet_outlined,
+            color: AppColors.textSecondary,
+            size: 22,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 6),
+                const Text(
+                  'Pilih Akun / Rekening Sumber',
+                  style: TextStyle(
+                    fontFamily: AppTextStyles.fontFamily,
+                    fontSize: 11,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                DropdownButtonHideUnderline(
+                  child: DropdownButton<AccountModel>(
+                    value: _selectedAccount,
+                    isExpanded: true,
+                    dropdownColor: AppColors.bgCard,
+                    style: const TextStyle(
+                      fontFamily: AppTextStyles.fontFamily,
+                      fontSize: 14,
+                      color: AppColors.textPrimary,
+                    ),
+                    hint: const Text(
+                      'Pilih Akun Sumber',
+                      style: TextStyle(
+                        fontFamily: AppTextStyles.fontFamily,
+                        color: AppColors.textMuted,
+                        fontSize: 14,
+                      ),
+                    ),
+                    icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.textSecondary),
+                    items: _accounts.map((acc) {
+                      return DropdownMenuItem<AccountModel>(
+                        value: acc,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              acc.name.isNotEmpty ? acc.name : 'Akun ${acc.id}',
+                              style: const TextStyle(
+                                fontFamily: AppTextStyles.fontFamily,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                            Text(
+                              formatRupiah(acc.balance),
+                              style: const TextStyle(
+                                fontFamily: AppTextStyles.fontFamily,
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.accent,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (acc) => setState(() => _selectedAccount = acc),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -9,6 +9,7 @@ import 'package:money_manajemen/features/dashboard/presentation/widgets/notifica
 import 'package:money_manajemen/features/transactions/presentation/pages/transactions_screen.dart';
 import 'package:money_manajemen/features/analytics/presentation/pages/analytics_screen.dart';
 import 'package:money_manajemen/features/profile/presentation/pages/profile_screen.dart';
+import 'package:money_manajemen/features/savings/presentation/pages/savings_screen.dart';
 import 'package:money_manajemen/features/auth/presentation/pages/login_screen.dart';
 import 'package:money_manajemen/features/auth/data/datasources/auth_local_data_source.dart';
 import 'package:money_manajemen/features/auth/data/models/user_model.dart';
@@ -1108,13 +1109,23 @@ class _DashboardScreenState extends State<DashboardScreen>
                       ),
                     ),
                   ).then((_) => _loadDashboardData(showLoading: false));
-                } else if (a.label == 'Budget' || a.label == 'Saving') {
+                } else if (a.label == 'Budget') {
                   Navigator.of(context).push(
                     PageRouteBuilder(
                       transitionDuration: const Duration(milliseconds: 300),
                       pageBuilder: (_, animation, __) => FadeTransition(
                         opacity: animation,
                         child: const AnalyticsScreen(),
+                      ),
+                    ),
+                  ).then((_) => _loadDashboardData(showLoading: false));
+                } else if (a.label == 'Saving') {
+                  Navigator.of(context).push(
+                    PageRouteBuilder(
+                      transitionDuration: const Duration(milliseconds: 300),
+                      pageBuilder: (_, animation, __) => FadeTransition(
+                        opacity: animation,
+                        child: const SavingsScreen(),
                       ),
                     ),
                   ).then((_) => _loadDashboardData(showLoading: false));
