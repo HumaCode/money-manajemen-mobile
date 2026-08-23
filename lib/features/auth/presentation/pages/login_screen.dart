@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:money_manajemen/app/theme/app_theme.dart';
@@ -15,6 +16,22 @@ import 'package:money_manajemen/features/auth/data/datasources/auth_local_data_s
 import 'package:money_manajemen/core/widgets/dynamic_island_toast.dart';
 import 'package:money_manajemen/features/auth/presentation/widgets/login_2fa_otp_sheet.dart';
 
+class _FeatureSlide {
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String description;
+  final String tag;
+
+  const _FeatureSlide({
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.description,
+    required this.tag,
+  });
+}
+
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -22,22 +39,58 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen>
-    with SingleTickerProviderStateMixin {
+class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStateMixin {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
 
   late final AnimationController _entrance;
+  late final PageController _pageController;
+  Timer? _carouselTimer;
+
+  int _activeSlide = 0;
   bool _rememberMe = false;
   bool _biometricAvailable = false;
 
-  Animation<double> _fadeFor(double start, double end) => CurvedAnimation(
-    parent: _entrance,
-    curve: Interval(start, end, curve: Curves.easeOut),
-  );
+  static const List<_FeatureSlide> _slides = [
+    _FeatureSlide(
+      icon: Icons.document_scanner_rounded,
+      color: AppColors.accent,
+      title: 'AI Receipt Scanner',
+      description: 'Pindai & hitung struk belanja otomatis dengan Gemini AI',
+      tag: 'AI POWERED',
+    ),
+    _FeatureSlide(
+      icon: Icons.shield_rounded,
+      color: AppColors.success,
+      title: '2FA WhatsApp Security',
+      description: 'Perlindungan login & otentikasi 2 langkah via WA OTP',
+      tag: 'SECURE 2.0',
+    ),
+    _FeatureSlide(
+      icon: Icons.account_balance_wallet_rounded,
+      color: AppColors.purple,
+      title: 'Multi-Account Sync',
+      description: 'Sinkronisasi saldo rekening BCA, BRI, & E-Wallet real-time',
+      tag: 'REALTIME',
+    ),
+    _FeatureSlide(
+      icon: Icons.pie_chart_rounded,
+      color: AppColors.warning,
+      title: 'Smart Financial Target',
+      description: 'Analisis pengeluaran cerdas & pencapaian tabungan otomatis',
+      tag: 'ANALYTICS',
+    ),
+  ];
 
-  Animation<Offset> _slideFor(double start, double end) =>
-      Tween<Offset>(begin: const Offset(0, 0.15), end: Offset.zero).animate(
+  Animation<double> _fadeFor(double start, double end) => CurvedAnimation(
+        parent: _entrance,
+        curve: Interval(start, end, curve: Curves.easeOut),
+      );
+
+  Animation<Offset> _slideFor(double start, double end) => Tween<Offset>(
+        begin: const Offset(0, 0.15),
+        end: Offset.zero,
+      ).animate(
         CurvedAnimation(
           parent: _entrance,
           curve: Interval(start, end, curve: Curves.easeOutCubic),
@@ -47,12 +100,24 @@ class _LoginScreenState extends State<LoginScreen>
   @override
   void initState() {
     super.initState();
+    _pageController = PageController();
     _entrance = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1100),
     )..forward();
 
     _checkBiometricStatus();
+
+    _carouselTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      if (mounted && _slides.isNotEmpty && _pageController.hasClients) {
+        final next = (_activeSlide + 1) % _slides.length;
+        _pageController.animateToPage(
+          next,
+          duration: const Duration(milliseconds: 600),
+          curve: Curves.easeInOutCubic,
+        );
+      }
+    });
   }
 
   Future<void> _checkBiometricStatus() async {
@@ -116,6 +181,8 @@ class _LoginScreenState extends State<LoginScreen>
 
   @override
   void dispose() {
+    _carouselTimer?.cancel();
+    _pageController.dispose();
     _entrance.dispose();
     _usernameController.dispose();
     _passwordController.dispose();
@@ -184,9 +251,7 @@ class _LoginScreenState extends State<LoginScreen>
 
             DynamicIslandToast.show(
               context,
-              message: state.userModel.message.isNotEmpty
-                  ? state.userModel.message
-                  : 'Login Berhasil!',
+              message: state.userModel.message.isNotEmpty ? state.userModel.message : 'Login Berhasil!',
               type: DynamicToastType.success,
             );
 
@@ -207,267 +272,494 @@ class _LoginScreenState extends State<LoginScreen>
           return AnimatedBackground(
             child: SafeArea(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 28),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    minHeight: MediaQuery.of(context).size.height -
-                        MediaQuery.of(context).padding.top -
-                        MediaQuery.of(context).padding.bottom,
-                  ),
-                  child: IntrinsicHeight(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        const SizedBox(height: 32),
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const SizedBox(height: 16),
 
-                        // Logo + heading
-                        FadeTransition(
-                          opacity: _fadeFor(0.0, 0.4),
-                          child: SlideTransition(
-                            position: _slideFor(0.0, 0.4),
-                            child: Column(
-                              children: [
-                                Container(
-                                  width: 64,
-                                  height: 64,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    gradient: AppColors.accentGradient,
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: AppColors.accent.withOpacity(0.3),
-                                        blurRadius: 24,
-                                        spreadRadius: 2,
-                                      ),
-                                    ],
-                                  ),
-                                  child: const Icon(
-                                    Icons.show_chart_rounded,
-                                    color: AppColors.bgDeep,
-                                    size: 30,
-                                  ),
-                                ),
-                                const SizedBox(height: 20),
-                                const Text(
-                                  'Selamat datang kembali',
-                                  style: TextStyle(
-                                    fontFamily: AppTextStyles.fontFamily,
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.w700,
-                                    color: AppColors.textPrimary,
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-                                const Text(
-                                  'Masuk untuk lanjut kelola keuanganmu',
-                                  textAlign: TextAlign.center,
-                                  style: AppTextStyles.tagline,
-                                ),
-                              ],
+                    // Top Hero Banner Carousel
+                    FadeTransition(
+                      opacity: _fadeFor(0.0, 0.4),
+                      child: SlideTransition(
+                        position: _slideFor(0.0, 0.4),
+                        child: _buildHeroCarousel(),
+                      ),
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // Glassmorphism Login Card Form
+                    FadeTransition(
+                      opacity: _fadeFor(0.2, 0.7),
+                      child: SlideTransition(
+                        position: _slideFor(0.2, 0.7),
+                        child: Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: AppColors.bgCard.withValues(alpha: 0.85),
+                            borderRadius: BorderRadius.circular(24),
+                            border: Border.all(
+                              color: AppColors.accent.withValues(alpha: 0.2),
+                              width: 1.5,
                             ),
-                          ),
-                        ),
-
-                        const SizedBox(height: 40),
-
-                        // Username field
-                        FadeTransition(
-                          opacity: _fadeFor(0.2, 0.6),
-                          child: SlideTransition(
-                            position: _slideFor(0.2, 0.6),
-                            child: AppTextField(
-                              label: 'Username / Email',
-                              icon: Icons.person_outline_rounded,
-                              controller: _usernameController,
-                            ),
-                          ),
-                        ),
-
-                        const SizedBox(height: 16),
-
-                        // Password field
-                        FadeTransition(
-                          opacity: _fadeFor(0.3, 0.7),
-                          child: SlideTransition(
-                            position: _slideFor(0.3, 0.7),
-                            child: AppTextField(
-                              label: 'Password',
-                              icon: Icons.lock_outline_rounded,
-                              obscureText: true,
-                              controller: _passwordController,
-                            ),
-                          ),
-                        ),
-
-                        const SizedBox(height: 16),
-
-                        // Remember me + Forgot password
-                        FadeTransition(
-                          opacity: _fadeFor(0.4, 0.75),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              GestureDetector(
-                                onTap: () =>
-                                    setState(() => _rememberMe = !_rememberMe),
-                                behavior: HitTestBehavior.opaque,
-                                child: Row(
-                                  children: [
-                                    AnimatedContainer(
-                                      duration: const Duration(milliseconds: 200),
-                                      width: 20,
-                                      height: 20,
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(6),
-                                        color: _rememberMe
-                                            ? AppColors.accent
-                                            : Colors.transparent,
-                                        border: Border.all(
-                                          color: _rememberMe
-                                              ? AppColors.accent
-                                              : AppColors.textSecondary,
-                                          width: 1.4,
-                                        ),
-                                      ),
-                                      child: AnimatedSwitcher(
-                                        duration: const Duration(milliseconds: 150),
-                                        child: _rememberMe
-                                            ? const Icon(
-                                                Icons.check_rounded,
-                                                size: 15,
-                                                color: AppColors.bgDeep,
-                                                key: ValueKey('checked'),
-                                              )
-                                            : const SizedBox(
-                                                key: ValueKey('unchecked'),
-                                              ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    const Text(
-                                      'Ingat saya',
-                                      style: TextStyle(
-                                        fontFamily: AppTextStyles.fontFamily,
-                                        fontSize: 13,
-                                        color: AppColors.textSecondary,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              GestureDetector(
-                                onTap: () {},
-                                child: const Text(
-                                  'Lupa password?',
-                                  style: TextStyle(
-                                    fontFamily: AppTextStyles.fontFamily,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.accent,
-                                  ),
-                                ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.3),
+                                blurRadius: 20,
+                                offset: const Offset(0, 10),
                               ),
                             ],
                           ),
-                        ),
-
-                        const SizedBox(height: 28),
-
-                        // Login button + Biometric button
-                        FadeTransition(
-                          opacity: _fadeFor(0.5, 0.85),
-                          child: SlideTransition(
-                            position: _slideFor(0.5, 0.85),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: PrimaryButton(
-                                    label: 'Masuk',
-                                    isLoading: isLoading,
-                                    onPressed: isLoading ? () {} : _handleLogin,
-                                  ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              const Text(
+                                'Selamat Datang',
+                                style: TextStyle(
+                                  fontFamily: AppTextStyles.fontFamily,
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.textPrimary,
                                 ),
-                                if (_biometricAvailable) ...[
-                                  const SizedBox(width: 12),
+                              ),
+                              const SizedBox(height: 4),
+                              const Text(
+                                'Masuk ke akun Money Management Anda',
+                                style: TextStyle(
+                                  fontFamily: AppTextStyles.fontFamily,
+                                  fontSize: 12,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                              const SizedBox(height: 20),
+
+                              // Username / Email input
+                              AppTextField(
+                                label: 'Username / Email',
+                                icon: Icons.person_outline_rounded,
+                                controller: _usernameController,
+                              ),
+                              const SizedBox(height: 14),
+
+                              // Password input
+                              AppTextField(
+                                label: 'Password',
+                                icon: Icons.lock_outline_rounded,
+                                obscureText: true,
+                                controller: _passwordController,
+                              ),
+                              const SizedBox(height: 14),
+
+                              // Remember Me & Forgot Password
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
                                   GestureDetector(
-                                    onTap: _handleBiometricLogin,
-                                    child: Container(
-                                      width: 52,
-                                      height: 52,
-                                      decoration: BoxDecoration(
-                                        color: AppColors.accent.withValues(alpha: 0.15),
-                                        borderRadius: BorderRadius.circular(AppRadius.button),
-                                        border: Border.all(color: AppColors.accent.withValues(alpha: 0.4)),
-                                      ),
-                                      child: const Icon(
-                                        Icons.fingerprint_rounded,
+                                    onTap: () => setState(() => _rememberMe = !_rememberMe),
+                                    behavior: HitTestBehavior.opaque,
+                                    child: Row(
+                                      children: [
+                                        AnimatedContainer(
+                                          duration: const Duration(milliseconds: 200),
+                                          width: 18,
+                                          height: 18,
+                                          decoration: BoxDecoration(
+                                            borderRadius: BorderRadius.circular(5),
+                                            color: _rememberMe ? AppColors.accent : Colors.transparent,
+                                            border: Border.all(
+                                              color: _rememberMe ? AppColors.accent : AppColors.textSecondary,
+                                              width: 1.4,
+                                            ),
+                                          ),
+                                          child: AnimatedSwitcher(
+                                            duration: const Duration(milliseconds: 150),
+                                            child: _rememberMe
+                                                ? const Icon(
+                                                    Icons.check_rounded,
+                                                    size: 13,
+                                                    color: AppColors.bgDeep,
+                                                  )
+                                                : const SizedBox(),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        const Text(
+                                          'Ingat saya',
+                                          style: TextStyle(
+                                            fontFamily: AppTextStyles.fontFamily,
+                                            fontSize: 12,
+                                            color: AppColors.textSecondary,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  GestureDetector(
+                                    onTap: () {},
+                                    child: const Text(
+                                      'Lupa password?',
+                                      style: TextStyle(
+                                        fontFamily: AppTextStyles.fontFamily,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
                                         color: AppColors.accent,
-                                        size: 28,
                                       ),
                                     ),
                                   ),
                                 ],
-                              ],
-                            ),
-                          ),
-                        ),
+                              ),
+                              const SizedBox(height: 22),
 
-                        const Spacer(),
-                        const SizedBox(height: 24),
-
-                        // Register link
-                        FadeTransition(
-                          opacity: _fadeFor(0.65, 1.0),
-                          child: Padding(
-                            padding: const EdgeInsets.only(bottom: 24),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Text(
-                                  'Belum punya akun? ',
-                                  style: TextStyle(
-                                    fontFamily: AppTextStyles.fontFamily,
-                                    fontSize: 14,
-                                    color: AppColors.textSecondary,
-                                  ),
-                                ),
-                                GestureDetector(
-                                  onTap: () {
-                                    Navigator.of(context).push(
-                                      PageRouteBuilder(
-                                        transitionDuration: const Duration(
-                                          milliseconds: 450,
-                                        ),
-                                        pageBuilder: (_, animation, __) =>
-                                            FadeTransition(
-                                          opacity: animation,
-                                          child: const RegisterScreen(),
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                  child: const Text(
-                                    'Daftar',
-                                    style: TextStyle(
-                                      fontFamily: AppTextStyles.fontFamily,
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w700,
-                                      color: AppColors.accent,
+                              // Login button & Biometric Button
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: PrimaryButton(
+                                      label: 'Masuk',
+                                      isLoading: isLoading,
+                                      onPressed: isLoading ? () {} : _handleLogin,
                                     ),
                                   ),
-                                ),
-                              ],
-                            ),
+                                  if (_biometricAvailable) ...[
+                                    const SizedBox(width: 12),
+                                    GestureDetector(
+                                      onTap: _handleBiometricLogin,
+                                      child: Container(
+                                        width: 52,
+                                        height: 52,
+                                        decoration: BoxDecoration(
+                                          color: AppColors.accent.withValues(alpha: 0.15),
+                                          borderRadius: BorderRadius.circular(AppRadius.button),
+                                          border: Border.all(color: AppColors.accent.withValues(alpha: 0.4)),
+                                        ),
+                                        child: const Icon(
+                                          Icons.fingerprint_rounded,
+                                          color: AppColors.accent,
+                                          size: 28,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ],
                           ),
                         ),
-                      ],
+                      ),
                     ),
-                  ),
+
+                    const SizedBox(height: 20),
+
+                    // Modern Security Badges Highlights
+                    FadeTransition(
+                      opacity: _fadeFor(0.5, 0.9),
+                      child: SlideTransition(
+                        position: _slideFor(0.5, 0.9),
+                        child: _buildFooterHighlights(),
+                      ),
+                    ),
+
+                    const SizedBox(height: 24),
+                  ],
                 ),
               ),
             ),
           );
         },
+      ),
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+          child: GestureDetector(
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const RegisterScreen(),
+                ),
+              );
+            },
+            child: Container(
+              height: 48,
+              decoration: BoxDecoration(
+                color: AppColors.bgCard.withValues(alpha: 0.95),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: AppColors.accent.withValues(alpha: 0.3)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.3),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Center(
+                child: RichText(
+                  text: const TextSpan(
+                    style: TextStyle(
+                      fontFamily: AppTextStyles.fontFamily,
+                      fontSize: 13,
+                      color: AppColors.textSecondary,
+                    ),
+                    children: [
+                      TextSpan(text: 'Belum punya akun? '),
+                      TextSpan(
+                        text: 'Daftar Sekarang',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.accent,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeroCarousel() {
+    return Column(
+      children: [
+        // App Logo & Brand Header
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: AppColors.accentGradient,
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.accent.withValues(alpha: 0.35),
+                    blurRadius: 16,
+                    spreadRadius: 2,
+                  ),
+                ],
+              ),
+              child: const Icon(
+                Icons.show_chart_rounded,
+                color: AppColors.bgDeep,
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 10),
+            ShaderMask(
+              shaderCallback: (bounds) => AppColors.accentGradient.createShader(bounds),
+              child: const Text(
+                'Money Management V2',
+                style: TextStyle(
+                  fontFamily: AppTextStyles.fontFamily,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+
+        // Carousel Card Container
+        Container(
+          height: 125,
+          decoration: BoxDecoration(
+            color: AppColors.bgCard.withValues(alpha: 0.6),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppColors.cardBorder),
+          ),
+          child: PageView.builder(
+            controller: _pageController,
+            onPageChanged: (index) => setState(() => _activeSlide = index),
+            itemCount: _slides.length,
+            itemBuilder: (context, index) {
+              final slide = _slides[index];
+              return Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: slide.color.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: slide.color.withValues(alpha: 0.3)),
+                      ),
+                      child: Icon(slide.icon, color: slide.color, size: 28),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: slide.color.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              slide.tag,
+                              style: TextStyle(
+                                fontFamily: AppTextStyles.fontFamily,
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold,
+                                color: slide.color,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            slide.title,
+                            style: const TextStyle(
+                              fontFamily: AppTextStyles.fontFamily,
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            slide.description,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontFamily: AppTextStyles.fontFamily,
+                              fontSize: 11,
+                              color: AppColors.textSecondary,
+                              height: 1.3,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 10),
+
+        // Indicator Dots
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(_slides.length, (index) {
+            final isActive = index == _activeSlide;
+            return AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              margin: const EdgeInsets.symmetric(horizontal: 3),
+              width: isActive ? 20 : 6,
+              height: 6,
+              decoration: BoxDecoration(
+                color: isActive ? AppColors.accent : AppColors.textSecondary.withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(3),
+              ),
+            );
+          }),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFooterHighlights() {
+    return Column(
+      children: [
+        // 3 Modern Security Chips
+        Row(
+          children: [
+            Expanded(
+              child: _buildChip(
+                icon: Icons.lock_outline_rounded,
+                label: '256-Bit SSL',
+                color: AppColors.accent,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _buildChip(
+                icon: Icons.storage_rounded,
+                label: 'SQLite Sync',
+                color: AppColors.purple,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _buildChip(
+                icon: Icons.chat_rounded,
+                label: 'WA OTP 2FA',
+                color: AppColors.success,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+
+        // Platform Trust Note
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 6,
+              height: 6,
+              decoration: const BoxDecoration(
+                color: AppColors.success,
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: 6),
+            const Text(
+              'Sistem Keuangan Aman & Terenkripsi Realtime',
+              style: TextStyle(
+                fontFamily: AppTextStyles.fontFamily,
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildChip({
+    required IconData icon,
+    required String label,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 10),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.35), width: 1.2),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontFamily: AppTextStyles.fontFamily,
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

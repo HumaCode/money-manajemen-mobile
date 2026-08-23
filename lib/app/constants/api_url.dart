@@ -5,6 +5,7 @@ class ApiUrl {
   // Auth
   static const String login = '$baseUrl/auth/login';
   static const String loginVerify2fa = '$baseUrl/auth/login/verify-2fa';
+  static const String loginResend2fa = '$baseUrl/auth/login/resend-2fa';
   static const String me = '$baseUrl/auth/me';
   static const String updateProfile = '$baseUrl/auth/profile';
   static const String updatePassword = '$baseUrl/auth/password';

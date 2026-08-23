@@ -50,6 +50,7 @@ class _Login2faOtpSheetState extends State<Login2faOtpSheet> {
   final List<FocusNode> _otpFocusNodes = List.generate(6, (_) => FocusNode());
 
   bool _isVerifying = false;
+  bool _isResending = false;
   int _timerSeconds = 300;
   Timer? _timer;
 
@@ -158,6 +159,64 @@ class _Login2faOtpSheetState extends State<Login2faOtpSheet> {
           context,
           title: 'Gagal Memproses',
           message: 'Terjadi kesalahan koneksi saat verifikasi 2FA',
+          type: DynamicToastType.error,
+        );
+      }
+    }
+  }
+
+  Future<void> _resendOtp() async {
+    setState(() => _isResending = true);
+    try {
+      final response = await http.post(
+        Uri.parse(ApiUrl.loginResend2fa),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-App-Key': ApiUrl.appKey,
+          'x-api-key': ApiUrl.appKey,
+        },
+        body: jsonEncode({
+          'user_id': widget.userId,
+        }),
+      ).timeout(const Duration(seconds: 15));
+
+      final json = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && json['success'] == true) {
+        for (var c in _otpControllers) {
+          c.clear();
+        }
+        _otpFocusNodes[0].requestFocus();
+        _startTimer();
+
+        if (mounted) {
+          setState(() => _isResending = false);
+          DynamicIslandToast.show(
+            context,
+            title: 'OTP Terkirim',
+            message: json['message'] ?? 'Kode OTP baru telah dikirim ulang via WhatsApp',
+            type: DynamicToastType.success,
+          );
+        }
+      } else {
+        if (mounted) {
+          setState(() => _isResending = false);
+          DynamicIslandToast.show(
+            context,
+            title: 'Gagal Kirim OTP',
+            message: json['message'] ?? 'Gagal mengirim ulang kode OTP',
+            type: DynamicToastType.error,
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isResending = false);
+        DynamicIslandToast.show(
+          context,
+          title: 'Kesalahan Koneksi',
+          message: 'Terjadi kesalahan saat mengirim ulang kode OTP',
           type: DynamicToastType.error,
         );
       }
@@ -284,7 +343,7 @@ class _Login2faOtpSheetState extends State<Login2faOtpSheet> {
             ),
             const SizedBox(height: 20),
 
-            if (_timerSeconds > 0)
+            if (_timerSeconds > 0) ...[
               Text(
                 'Masa berlaku kode: ${_formatTimer(_timerSeconds)}',
                 style: const TextStyle(
@@ -293,16 +352,70 @@ class _Login2faOtpSheetState extends State<Login2faOtpSheet> {
                   fontWeight: FontWeight.w600,
                   color: AppColors.warning,
                 ),
-              )
-            else
-              const Text(
-                'Kode OTP telah kadaluarsa. Silakan login ulang.',
-                style: TextStyle(
-                  fontFamily: AppTextStyles.fontFamily,
-                  fontSize: 12,
-                  color: AppColors.error,
+              ),
+              const SizedBox(height: 10),
+              GestureDetector(
+                onTap: _isResending ? null : _resendOtp,
+                child: Text(
+                  _isResending ? 'Mengirim Ulang Kode OTP...' : 'Kirim Ulang Kode OTP',
+                  style: TextStyle(
+                    fontFamily: AppTextStyles.fontFamily,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: _isResending ? AppColors.textSecondary : AppColors.accent,
+                    decoration: TextDecoration.underline,
+                  ),
                 ),
               ),
+            ] else ...[
+              Column(
+                children: [
+                  const Text(
+                    'Kode OTP telah kadaluarsa.',
+                    style: TextStyle(
+                      fontFamily: AppTextStyles.fontFamily,
+                      fontSize: 12,
+                      color: AppColors.error,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  GestureDetector(
+                    onTap: _isResending ? null : _resendOtp,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: AppColors.accent.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppColors.accent.withValues(alpha: 0.4)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (_isResending)
+                            const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accent),
+                            )
+                          else
+                            const Icon(Icons.refresh_rounded, size: 16, color: AppColors.accent),
+                          const SizedBox(width: 6),
+                          Text(
+                            _isResending ? 'Mengirim Ulang...' : 'Kirim Ulang Kode OTP',
+                            style: const TextStyle(
+                              fontFamily: AppTextStyles.fontFamily,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.accent,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
             const SizedBox(height: 24),
 
             PrimaryButton(
