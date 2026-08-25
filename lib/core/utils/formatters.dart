@@ -24,9 +24,13 @@ int parseAmountString(dynamic val) {
   final s = val.toString().trim();
   if (s.isEmpty) return 0;
 
-  final parsedDouble = double.tryParse(s);
-  if (parsedDouble != null) return parsedDouble.toInt();
+  // 1. MySQL decimal string like "300000.00" or "1500.50"
+  if (RegExp(r'^\d+\.\d{1,2}$').hasMatch(s)) {
+    final parsedDouble = double.tryParse(s);
+    if (parsedDouble != null) return parsedDouble.toInt();
+  }
 
+  // 2. Indonesian formatted numbers with thousand dots (e.g. "300.000", "1.500.000")
   final clean = s.replaceAll(RegExp(r'[^\d]'), '');
   return int.tryParse(clean) ?? 0;
 }

@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:money_manajemen/app/theme/app_theme.dart';
 import 'package:money_manajemen/core/utils/formatters.dart';
 import 'package:money_manajemen/core/widgets/dynamic_island_toast.dart';
+import 'package:money_manajemen/features/auth/data/datasources/auth_local_data_source.dart';
 import '../../data/models/savings_goal_model.dart';
 import '../../data/models/savings_contribution_model.dart' hide Data;
+import '../../data/datasources/savings_remote_data_source.dart';
 import 'add_savings_contribution_sheet.dart';
 
 class SavingsGoalDetailSheet extends StatefulWidget {
@@ -29,62 +32,60 @@ class SavingsGoalDetailSheet extends StatefulWidget {
 
 class _SavingsGoalDetailSheetState extends State<SavingsGoalDetailSheet> {
   late Data _currentGoal;
-
-  // Mock initial contribution history list for rich demonstration
-  late List<Contribution> _history;
+  List<Contribution> _history = [];
+  bool _isLoadingDetail = false;
 
   @override
   void initState() {
     super.initState();
     _currentGoal = widget.goal;
-
-    final now = DateTime.now();
-    _history = [
-      Contribution(
-        id: 'c1',
-        savingsGoalId: widget.goal.id,
-        amount: '5000000',
-        notes: 'Setoran Awal Tabungan',
-        contributedAt: now.subtract(const Duration(days: 45)),
-        savingsGoal: _buildSavingsGoalObj(),
-      ),
-      Contribution(
-        id: 'c2',
-        savingsGoalId: widget.goal.id,
-        amount: '6500000',
-        notes: 'Alokasi Gaji Bulanan',
-        contributedAt: now.subtract(const Duration(days: 20)),
-        savingsGoal: _buildSavingsGoalObj(),
-      ),
-      Contribution(
-        id: 'c3',
-        savingsGoalId: widget.goal.id,
-        amount: '5000000',
-        notes: 'Bonus Projek Sampingan',
-        contributedAt: now.subtract(const Duration(days: 5)),
-        savingsGoal: _buildSavingsGoalObj(),
-      ),
-    ];
+    _fetchDetail();
   }
 
-  SavingsGoal _buildSavingsGoalObj() {
-    return SavingsGoal(
-      id: widget.goal.id,
-      userId: '',
-      accountId: widget.goal.accountId,
-      currencyId: widget.goal.currencyId,
-      name: widget.goal.name,
-      description: widget.goal.description,
-      targetAmount: widget.goal.targetAmount.toString(),
-      currentAmount: widget.goal.currentAmount.toString(),
-      monthlyTarget: widget.goal.monthlyTarget.toString(),
-      targetDate: widget.goal.targetDate,
-      status: widget.goal.status,
-      icon: widget.goal.icon,
-      color: widget.goal.color,
-      createdAt: widget.goal.createdAt,
-      updatedAt: widget.goal.updatedAt,
-    );
+  Future<void> _fetchDetail() async {
+    setState(() => _isLoadingDetail = true);
+    try {
+      final dataSource = SavingsRemoteDataSourceImpl(
+        client: http.Client(),
+        localDataSource: AuthLocalDataSourceImpl(),
+      );
+
+      final detailData = await dataSource.getSavingGoalDetail(_currentGoal.id);
+      if (mounted && detailData.isNotEmpty) {
+        final goalObj = detailData['goal'] ?? detailData;
+        final rawContribs = detailData['contributions'] as List? ?? detailData['history'] as List? ?? [];
+        
+        setState(() {
+          if (goalObj is Map<String, dynamic>) {
+            _currentGoal = Data.fromJson(goalObj);
+          }
+          _history = rawContribs.map((j) => Contribution.fromJson(j)).toList();
+          _isLoadingDetail = false;
+        });
+        return;
+      }
+    } catch (_) {}
+
+    if (mounted) {
+      setState(() => _isLoadingDetail = false);
+    }
+  }
+
+
+
+  Map<String, List<Contribution>> get _groupedContributions {
+    final sorted = List<Contribution>.from(_history)
+      ..sort((a, b) => b.contributedAt.compareTo(a.contributedAt));
+
+    final Map<String, List<Contribution>> groups = {};
+    for (final item in sorted) {
+      final label = formatDateGroup(item.contributedAt);
+      if (!groups.containsKey(label)) {
+        groups[label] = [];
+      }
+      groups[label]!.add(item);
+    }
+    return groups;
   }
 
   void _openAddContribution() async {
@@ -92,10 +93,11 @@ class _SavingsGoalDetailSheetState extends State<SavingsGoalDetailSheet> {
       context,
       savingsGoalId: _currentGoal.id,
       goalTitle: _currentGoal.name,
+      destinationAccountId: _currentGoal.accountId,
     );
 
     if (contribution != null) {
-      final addedAmt = int.tryParse(contribution.amount) ?? 0;
+      final addedAmt = parseAmountString(contribution.amount);
       final newCurrent = _currentGoal.currentAmount + addedAmt;
       final newRemaining = _currentGoal.targetAmount - newCurrent;
       final newPct = _currentGoal.targetAmount > 0 ? (newCurrent / _currentGoal.targetAmount) : 0.0;
@@ -125,6 +127,9 @@ class _SavingsGoalDetailSheetState extends State<SavingsGoalDetailSheet> {
         );
       });
 
+      // 🔄 Sync detail from server
+      _fetchDetail();
+
       if (mounted) {
         DynamicIslandToast.show(
           context,
@@ -134,6 +139,96 @@ class _SavingsGoalDetailSheetState extends State<SavingsGoalDetailSheet> {
         );
       }
     }
+  }
+
+  void _editContribution(Contribution item) async {
+    final updatedContrib = await AddSavingsContributionSheet.show(
+      context,
+      savingsGoalId: _currentGoal.id,
+      goalTitle: _currentGoal.name,
+      contributionToEdit: item,
+    );
+
+    if (updatedContrib != null) {
+      _fetchDetail();
+      if (mounted) {
+        final amt = parseAmountString(updatedContrib.amount);
+        DynamicIslandToast.show(
+          context,
+          title: 'Setoran Diperbarui ✏️',
+          message: 'Setoran ${formatRupiah(amt)} berhasil diperbarui',
+          type: DynamicToastType.success,
+        );
+      }
+    }
+  }
+
+  void _deleteContribution(Contribution item) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.bgCard,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text(
+          'Hapus Catatan Setoran?',
+          style: TextStyle(
+            fontFamily: AppTextStyles.fontFamily,
+            color: AppColors.textPrimary,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: Text(
+          'Setoran "${item.notes.isNotEmpty ? item.notes : formatRupiah(parseAmountString(item.amount))}" akan dihapus permanen.',
+          style: const TextStyle(
+            fontFamily: AppTextStyles.fontFamily,
+            color: AppColors.textSecondary,
+            fontSize: 13,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Batal', style: TextStyle(color: AppColors.textSecondary)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              final dataSource = SavingsRemoteDataSourceImpl(
+                client: http.Client(),
+                localDataSource: AuthLocalDataSourceImpl(),
+              );
+
+              final success = await dataSource.deleteSavingContribution(_currentGoal.id, item.id);
+              await dataSource.getSavingGoals();
+
+              if (mounted) {
+                if (success) {
+                  _fetchDetail();
+                  DynamicIslandToast.show(
+                    context,
+                    title: 'Setoran Dihapus 🗑️',
+                    message: 'Catatan setoran berhasil dihapus',
+                    type: DynamicToastType.success,
+                  );
+                } else {
+                  DynamicIslandToast.show(
+                    context,
+                    title: 'Gagal Menghapus ❌',
+                    message: 'Gagal menghapus setoran dari server',
+                    type: DynamicToastType.error,
+                  );
+                }
+              }
+            },
+            child: const Text('Hapus', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -405,71 +500,157 @@ class _SavingsGoalDetailSheetState extends State<SavingsGoalDetailSheet> {
                       ],
                     ),
                   )
-                : ListView.builder(
-                    itemCount: _history.length,
-                    itemBuilder: (context, index) {
-                      final item = _history[index];
-                      final amt = parseAmountString(item.amount);
+                : Builder(
+                    builder: (context) {
+                      final grouped = _groupedContributions;
 
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 10),
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: AppColors.bgDeep.withValues(alpha: 0.7),
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: AppColors.cardBorder),
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: AppColors.success.withValues(alpha: 0.12),
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(
-                                Icons.arrow_downward_rounded,
-                                color: AppColors.success,
-                                size: 18,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    item.notes.isNotEmpty ? item.notes : 'Setoran Tabungan',
-                                    style: const TextStyle(
-                                      fontFamily: AppTextStyles.fontFamily,
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                      color: AppColors.textPrimary,
+                      return ListView.builder(
+                        itemCount: grouped.length,
+                        itemBuilder: (context, index) {
+                          final entry = grouped.entries.elementAt(index);
+                          final dateLabel = entry.key;
+                          final items = entry.value;
+
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.only(top: 8, bottom: 8),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.accent.withValues(alpha: 0.1),
+                                        borderRadius: BorderRadius.circular(20),
+                                        border: Border.all(color: AppColors.accent.withValues(alpha: 0.25)),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          const Icon(Icons.calendar_today_rounded, size: 12, color: AppColors.accent),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            dateLabel,
+                                            style: const TextStyle(
+                                              fontFamily: AppTextStyles.fontFamily,
+                                              fontSize: 11.5,
+                                              fontWeight: FontWeight.w600,
+                                              color: AppColors.accent,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    formatDateFull(item.contributedAt),
-                                    style: const TextStyle(
-                                      fontFamily: AppTextStyles.fontFamily,
-                                      fontSize: 11,
-                                      color: AppColors.textSecondary,
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Divider(
+                                        color: AppColors.cardBorder.withValues(alpha: 0.6),
+                                        height: 1,
+                                      ),
                                     ),
+                                  ],
+                                ),
+                              ),
+                              ...items.map((item) {
+                                final amt = parseAmountString(item.amount);
+
+                                return Container(
+                                  margin: const EdgeInsets.only(bottom: 8),
+                                  padding: const EdgeInsets.all(14),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.bgDeep.withValues(alpha: 0.7),
+                                    borderRadius: BorderRadius.circular(14),
+                                    border: Border.all(color: AppColors.cardBorder),
                                   ),
-                                ],
-                              ),
-                            ),
-                            Text(
-                              '+${formatRupiah(amt)}',
-                              style: const TextStyle(
-                                fontFamily: AppTextStyles.fontFamily,
-                                fontSize: 13.5,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.success,
-                              ),
-                            ),
-                          ],
-                        ),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(8),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.success.withValues(alpha: 0.12),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(
+                                          Icons.arrow_downward_rounded,
+                                          color: AppColors.success,
+                                          size: 18,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              item.notes.isNotEmpty ? item.notes : 'Setoran Tabungan',
+                                              style: const TextStyle(
+                                                fontFamily: AppTextStyles.fontFamily,
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w600,
+                                                color: AppColors.textPrimary,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              formatDateFull(item.contributedAt),
+                                              style: const TextStyle(
+                                                fontFamily: AppTextStyles.fontFamily,
+                                                fontSize: 11,
+                                                color: AppColors.textSecondary,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      Text(
+                                        '+${formatRupiah(amt)}',
+                                        style: const TextStyle(
+                                          fontFamily: AppTextStyles.fontFamily,
+                                          fontSize: 13.5,
+                                          fontWeight: FontWeight.bold,
+                                          color: AppColors.success,
+                                        ),
+                                      ),
+                                      PopupMenuButton<String>(
+                                        icon: const Icon(Icons.more_vert_rounded, color: AppColors.textSecondary, size: 18),
+                                        color: AppColors.bgCard,
+                                        onSelected: (val) {
+                                          if (val == 'edit') {
+                                            _editContribution(item);
+                                          } else if (val == 'delete') {
+                                            _deleteContribution(item);
+                                          }
+                                        },
+                                        itemBuilder: (context) => [
+                                          const PopupMenuItem(
+                                            value: 'edit',
+                                            child: Row(
+                                              children: [
+                                                Icon(Icons.edit_outlined, size: 16, color: AppColors.accent),
+                                                SizedBox(width: 8),
+                                                Text('Edit Setoran', style: TextStyle(color: AppColors.textPrimary, fontSize: 13)),
+                                              ],
+                                            ),
+                                          ),
+                                          const PopupMenuItem(
+                                            value: 'delete',
+                                            child: Row(
+                                              children: [
+                                                Icon(Icons.delete_outline_rounded, size: 16, color: AppColors.error),
+                                                SizedBox(width: 8),
+                                                Text('Hapus Setoran', style: TextStyle(color: AppColors.error, fontSize: 13)),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }),
+                            ],
+                          );
+                        },
                       );
                     },
                   ),

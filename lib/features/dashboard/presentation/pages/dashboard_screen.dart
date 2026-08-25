@@ -4,7 +4,6 @@ import 'package:money_manajemen/core/widgets/app_skeleton.dart';
 import 'package:money_manajemen/core/widgets/app_bottom_nav.dart';
 import 'package:money_manajemen/core/widgets/app_empty_state.dart';
 import 'package:money_manajemen/core/widgets/dynamic_island_toast.dart';
-import 'package:money_manajemen/core/services/biometric_service.dart';
 import 'package:money_manajemen/features/dashboard/presentation/widgets/notification_sheet.dart';
 import 'package:money_manajemen/features/transactions/presentation/pages/transactions_screen.dart';
 import 'package:money_manajemen/features/analytics/presentation/pages/analytics_screen.dart';
@@ -13,7 +12,6 @@ import 'package:money_manajemen/features/savings/presentation/pages/savings_scre
 import 'package:money_manajemen/features/auth/presentation/pages/login_screen.dart';
 import 'package:money_manajemen/features/auth/data/datasources/auth_local_data_source.dart';
 import 'package:money_manajemen/features/auth/data/models/user_model.dart';
-import 'package:money_manajemen/features/transactions/presentation/widgets/add_transaction_sheet.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:money_manajemen/core/widgets/ai_scanning_loading_dialog.dart';
@@ -23,6 +21,7 @@ import 'package:money_manajemen/features/transactions/data/models/transaction_mo
 import 'package:money_manajemen/features/transactions/data/models/account_model.dart';
 import 'package:money_manajemen/features/transactions/data/datasources/transaction_remote_data_source.dart';
 import 'package:money_manajemen/features/transactions/data/datasources/master_remote_data_source.dart';
+import 'package:money_manajemen/features/savings/data/datasources/savings_remote_data_source.dart';
 import 'package:money_manajemen/core/database/database_helper.dart';
 import 'package:money_manajemen/core/utils/formatters.dart';
 
@@ -413,6 +412,13 @@ class _DashboardScreenState extends State<DashboardScreen>
         localDataSource: AuthLocalDataSourceImpl(),
       );
       await masterDS.getAccounts();
+      await masterDS.getCategories();
+
+      final savingsDS = SavingsRemoteDataSourceImpl(
+        client: http.Client(),
+        localDataSource: AuthLocalDataSourceImpl(),
+      );
+      await savingsDS.getSavingGoals();
 
       if (mounted) {
         await _renderLocalDashboardState();
@@ -916,7 +922,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                             DynamicIslandToast.show(
                               context,
                               title: 'Menyinkronkan Data',
-                              message: 'Memperbarui data akun & saldo dari server...',
+                              message: 'Mengunduh data server & me-replace SQLite local...',
                               type: DynamicToastType.info,
                             );
                             await _loadDashboardData();

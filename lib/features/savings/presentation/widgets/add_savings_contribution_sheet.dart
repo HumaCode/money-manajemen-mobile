@@ -6,23 +6,31 @@ import 'package:money_manajemen/core/widgets/app_text_field.dart';
 import 'package:money_manajemen/core/widgets/primary_button.dart';
 import 'package:money_manajemen/core/widgets/dynamic_island_toast.dart';
 import 'package:money_manajemen/features/auth/data/datasources/auth_local_data_source.dart';
+import 'package:money_manajemen/features/transactions/data/models/account_model.dart';
+import 'package:money_manajemen/features/transactions/data/datasources/master_remote_data_source.dart';
 import '../../data/models/savings_contribution_model.dart';
 import '../../data/datasources/savings_remote_data_source.dart';
 
 class AddSavingsContributionSheet extends StatefulWidget {
   final String savingsGoalId;
   final String goalTitle;
+  final String? destinationAccountId;
+  final Contribution? contributionToEdit;
 
   const AddSavingsContributionSheet({
     super.key,
     required this.savingsGoalId,
     required this.goalTitle,
+    this.destinationAccountId,
+    this.contributionToEdit,
   });
 
   static Future<Contribution?> show(
     BuildContext context, {
     required String savingsGoalId,
     required String goalTitle,
+    String? destinationAccountId,
+    Contribution? contributionToEdit,
   }) {
     return showModalBottomSheet<Contribution>(
       context: context,
@@ -31,6 +39,8 @@ class AddSavingsContributionSheet extends StatefulWidget {
       builder: (_) => AddSavingsContributionSheet(
         savingsGoalId: savingsGoalId,
         goalTitle: goalTitle,
+        destinationAccountId: destinationAccountId,
+        contributionToEdit: contributionToEdit,
       ),
     );
   }
@@ -47,14 +57,45 @@ class _AddSavingsContributionSheetState extends State<AddSavingsContributionShee
   DateTime _selectedDate = DateTime.now();
   bool _isLoading = false;
 
+  List<AccountModel> _sourceAccounts = [];
+  AccountModel? _selectedSourceAccount;
+
   @override
   void initState() {
     super.initState();
+    if (widget.contributionToEdit != null) {
+      final initialAmt = parseAmountString(widget.contributionToEdit!.amount);
+      _amountController.text = ThousandsSeparatorInputFormatter.formatNumberWithDots(initialAmt.toString());
+      _notesController.text = widget.contributionToEdit!.notes;
+      _selectedDate = widget.contributionToEdit!.contributedAt;
+    }
     _dateController = TextEditingController(text: formatDateFull(_selectedDate));
+    _loadSourceAccounts();
+  }
+
+  Future<void> _loadSourceAccounts() async {
+    try {
+      final masterDS = MasterRemoteDataSourceImpl(
+        client: http.Client(),
+        localDataSource: AuthLocalDataSourceImpl(),
+      );
+      final allAccounts = await masterDS.getAccounts();
+      final validSourceAccounts = allAccounts.where((a) => a.id != widget.destinationAccountId).toList();
+
+      if (mounted) {
+        setState(() {
+          _sourceAccounts = validSourceAccounts;
+          if (validSourceAccounts.isNotEmpty) {
+            _selectedSourceAccount = validSourceAccounts.first;
+          }
+        });
+      }
+    } catch (_) {}
   }
 
   @override
   void dispose() {
+    FocusManager.instance.primaryFocus?.unfocus();
     _amountController.dispose();
     _notesController.dispose();
     _dateController.dispose();
@@ -86,6 +127,17 @@ class _AddSavingsContributionSheetState extends State<AddSavingsContributionShee
       return;
     }
 
+    if (_selectedSourceAccount != null && amount > _selectedSourceAccount!.balance) {
+      DynamicIslandToast.show(
+        context,
+        title: 'Saldo Tidak Cukup ⚠️',
+        message:
+            'Nominal setoran (${formatRupiah(amount)}) melebihi saldo ${_selectedSourceAccount!.name} (${formatRupiah(_selectedSourceAccount!.balance)})',
+        type: DynamicToastType.warning,
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     final dataSource = SavingsRemoteDataSourceImpl(
@@ -93,23 +145,44 @@ class _AddSavingsContributionSheetState extends State<AddSavingsContributionShee
       localDataSource: AuthLocalDataSourceImpl(),
     );
 
-    final remoteContrib = await dataSource.addSavingContribution(
-      widget.savingsGoalId,
-      amount: amount,
-      contributedAt: _selectedDate,
-      notes: _notesController.text.trim(),
-    );
+    Contribution? remoteContrib;
+    String errorMessage = 'Gagal menyimpan setoran tabungan ke server database';
+
+    try {
+      if (widget.contributionToEdit != null) {
+        remoteContrib = await dataSource.updateSavingContribution(
+          widget.savingsGoalId,
+          widget.contributionToEdit!.id,
+          amount: amount,
+          contributedAt: _selectedDate,
+          notes: _notesController.text.trim(),
+        );
+      } else {
+        remoteContrib = await dataSource.addSavingContribution(
+          widget.savingsGoalId,
+          amount: amount,
+          contributedAt: _selectedDate,
+          notes: _notesController.text.trim(),
+          accountId: _selectedSourceAccount?.id,
+        );
+      }
+    } catch (e) {
+      errorMessage = e.toString().replaceAll('Exception: ', '');
+    }
 
     if (!mounted) return;
     setState(() => _isLoading = false);
 
     if (remoteContrib != null) {
+      // 🔄 Replace local SQLite database table with fresh server data
+      await dataSource.getSavingGoals();
+      if (!mounted) return;
       Navigator.of(context).pop(remoteContrib);
     } else {
       DynamicIslandToast.show(
         context,
         title: 'Gagal Menyimpan ❌',
-        message: 'Gagal menyimpan setoran tabungan ke server database',
+        message: errorMessage,
         type: DynamicToastType.error,
       );
     }
@@ -167,9 +240,9 @@ class _AddSavingsContributionSheetState extends State<AddSavingsContributionShee
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'Setor Tabungan',
-                        style: TextStyle(
+                      Text(
+                        widget.contributionToEdit != null ? 'Edit Setoran Tabungan' : 'Setor Tabungan',
+                        style: const TextStyle(
                           fontFamily: AppTextStyles.fontFamily,
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -192,6 +265,61 @@ class _AddSavingsContributionSheetState extends State<AddSavingsContributionShee
               ],
             ),
             const SizedBox(height: 20),
+
+            // Pilih Rekening Sumber (Hanya saat tambah setoran baru)
+            if (widget.contributionToEdit == null && _sourceAccounts.isNotEmpty) ...[
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Rekening Sumber (Asal Dana)',
+                    style: TextStyle(
+                      fontFamily: AppTextStyles.fontFamily,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppColors.bgInput,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: AppColors.cardBorder),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<AccountModel>(
+                        value: _selectedSourceAccount,
+                        isExpanded: true,
+                        dropdownColor: AppColors.bgCard,
+                        icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.textSecondary),
+                        items: _sourceAccounts.map((acc) {
+                          final balStr = formatRupiah(acc.balance);
+                          return DropdownMenuItem<AccountModel>(
+                            value: acc,
+                            child: Text(
+                              '${acc.name} — $balStr',
+                              style: const TextStyle(
+                                fontFamily: AppTextStyles.fontFamily,
+                                fontSize: 13.5,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (val) {
+                          if (val != null) {
+                            setState(() => _selectedSourceAccount = val);
+                          }
+                        },
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+            ],
 
             // Input Nominal Setoran
             AppTextField(
@@ -252,7 +380,7 @@ class _AddSavingsContributionSheetState extends State<AddSavingsContributionShee
             const SizedBox(height: 24),
 
             PrimaryButton(
-              label: 'Tambah Setoran Tabungan',
+              label: widget.contributionToEdit != null ? 'Simpan Perubahan Setoran' : 'Tambah Setoran Tabungan',
               isLoading: _isLoading,
               onPressed: _handleSave,
             ),

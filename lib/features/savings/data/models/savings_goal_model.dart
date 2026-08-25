@@ -18,17 +18,6 @@ int _parseInt(dynamic val, [int defaultValue = 0]) {
   return defaultValue;
 }
 
-double _parseDouble(dynamic val, [double defaultValue = 0.0]) {
-  if (val == null) return defaultValue;
-  if (val is double) return val;
-  if (val is int) return val.toDouble();
-  if (val is String) {
-    final parsed = double.tryParse(val);
-    if (parsed != null) return parsed;
-  }
-  return defaultValue;
-}
-
 DateTime _parseDate(dynamic val) {
   if (val == null) return DateTime.now();
   if (val is DateTime) return val;
@@ -111,9 +100,8 @@ class Data {
     final current = _parseInt(json["current_amount"]);
     final calcRemaining = target - current;
     final remaining = _parseInt(json["remaining_amount"], calcRemaining < 0 ? 0 : calcRemaining);
-    final calcPct = target > 0 ? (current / target) : 0.0;
-    final rawPct = _parseDouble(json["progress_percentage"], calcPct);
-    final double progressPct = rawPct > 1.0 ? (rawPct / 100.0).clamp(0.0, 1.0) : rawPct.clamp(0.0, 1.0);
+    final calcPct = target > 0 ? (current / target).clamp(0.0, 1.0) : 0.0;
+    final double progressPct = calcPct;
 
     return Data(
       id: json["id"]?.toString() ?? '',

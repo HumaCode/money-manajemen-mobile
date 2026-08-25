@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:money_manajemen/app/constants/api_url.dart';
 import 'package:money_manajemen/app/theme/app_theme.dart';
 import 'package:money_manajemen/core/database/database_helper.dart';
 import 'package:money_manajemen/core/services/biometric_service.dart';
@@ -34,6 +36,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   UserDetail? _user;
   int _accountsCount = 0;
   int _transactionsCount = 0;
+  String _selectedCurrencyCode = 'IDR';
 
   Animation<double> _fadeFor(double start, double end) => CurvedAnimation(
     parent: _entrance,
@@ -66,6 +69,7 @@ class _ProfileScreenState extends State<ProfileScreen>
     final localAccs = await DatabaseHelper.instance.getAccounts();
     final localTxs = await DatabaseHelper.instance.getTransactions();
     final bioOn = await BiometricService.isBiometricEnabled();
+    final savedCode = await AuthLocalDataSourceImpl().getSelectedCurrencyCode();
 
     if (mounted) {
       setState(() {
@@ -73,6 +77,7 @@ class _ProfileScreenState extends State<ProfileScreen>
         _accountsCount = localAccs.length;
         _transactionsCount = localTxs.length;
         _biometricOn = bioOn;
+        _selectedCurrencyCode = savedCode;
       });
     }
 
@@ -135,6 +140,203 @@ class _ProfileScreenState extends State<ProfileScreen>
         _user = updated;
       });
     }
+  }
+
+  Future<void> _openCurrencyPickerModal() async {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return Container(
+          padding: const EdgeInsets.all(24),
+          decoration: const BoxDecoration(
+            color: AppColors.bgCard,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+            border: Border(top: BorderSide(color: AppColors.cardBorder, width: 1.5)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.textSecondary.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.accent.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: const Icon(
+                      Icons.attach_money_rounded,
+                      color: AppColors.accent,
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'Pilih Mata Uang',
+                    style: TextStyle(
+                      fontFamily: AppTextStyles.fontFamily,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              FutureBuilder<List<Map<String, dynamic>>>(
+                future: _fetchCurrenciesFromApi(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 30),
+                      child: Center(
+                        child: CircularProgressIndicator(color: AppColors.accent),
+                      ),
+                    );
+                  }
+
+                  final list = snapshot.data ?? [
+                    {'id': '1', 'code': 'IDR', 'name': 'Rupiah Indonesia', 'symbol': 'Rp'},
+                    {'id': '2', 'code': 'USD', 'name': 'Dolar Amerika', 'symbol': '\$'},
+                    {'id': '3', 'code': 'EUR', 'name': 'Euro', 'symbol': '€'},
+                  ];
+
+                  return Flexible(
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: list.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 8),
+                      itemBuilder: (context, index) {
+                        final curr = list[index];
+                        final id = curr['id']?.toString() ?? '';
+                        final code = curr['code']?.toString() ?? 'IDR';
+                        final name = curr['name']?.toString() ?? '';
+                        final symbol = curr['symbol']?.toString() ?? '';
+                        final isSelected = _selectedCurrencyCode == code;
+
+                        return Container(
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? AppColors.accent.withValues(alpha: 0.15)
+                                : AppColors.bgInput,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: isSelected
+                                  ? AppColors.accent
+                                  : AppColors.cardBorder,
+                              width: isSelected ? 1.5 : 1,
+                            ),
+                          ),
+                          child: ListTile(
+                            onTap: () async {
+                              await AuthLocalDataSourceImpl().saveSelectedCurrency(id, code);
+                              if (mounted) {
+                                setState(() {
+                                  _selectedCurrencyCode = code;
+                                });
+                                Navigator.pop(ctx);
+                                DynamicIslandToast.show(
+                                  context,
+                                  title: 'Mata Uang Diperbarui',
+                                  message: 'Mata uang $code ($name) berhasil disimpan',
+                                  type: DynamicToastType.success,
+                                );
+                              }
+                            },
+                            leading: Container(
+                              width: 38,
+                              height: 38,
+                              decoration: BoxDecoration(
+                                color: isSelected
+                                    ? AppColors.accent
+                                    : AppColors.bgCard,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              alignment: Alignment.center,
+                              child: Text(
+                                symbol,
+                                style: TextStyle(
+                                  fontFamily: AppTextStyles.fontFamily,
+                                  fontWeight: FontWeight.bold,
+                                  color: isSelected
+                                      ? AppColors.bgDeep
+                                      : AppColors.textPrimary,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ),
+                            title: Text(
+                              '$code — $name',
+                              style: TextStyle(
+                                fontFamily: AppTextStyles.fontFamily,
+                                fontWeight: isSelected
+                                    ? FontWeight.bold
+                                    : FontWeight.w600,
+                                color: AppColors.textPrimary,
+                                fontSize: 14,
+                              ),
+                            ),
+                            trailing: isSelected
+                                ? const Icon(
+                                    Icons.check_circle_rounded,
+                                    color: AppColors.accent,
+                                    size: 22,
+                                  )
+                                : null,
+                          ),
+                        );
+                      },
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 10),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchCurrenciesFromApi() async {
+    try {
+      final token = await AuthLocalDataSourceImpl().getToken();
+      final response = await http.get(
+        Uri.parse(ApiUrl.currencies),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer ${token ?? ''}',
+          'X-App-Key': ApiUrl.appKey,
+          'x-api-key': ApiUrl.appKey,
+        },
+      ).timeout(const Duration(seconds: 8));
+
+      final body = jsonDecode(response.body);
+      if (response.statusCode == 200 && body['data'] is List) {
+        return List<Map<String, dynamic>>.from(body['data']);
+      }
+    } catch (_) {}
+
+    return [
+      {'id': '1', 'code': 'IDR', 'name': 'Rupiah Indonesia', 'symbol': 'Rp'},
+      {'id': '2', 'code': 'USD', 'name': 'Dolar Amerika', 'symbol': '\$'},
+      {'id': '3', 'code': 'EUR', 'name': 'Euro', 'symbol': '€'},
+    ];
   }
 
   @override
@@ -336,8 +538,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                   icon: Icons.attach_money_rounded,
                   label: 'Mata Uang',
                   color: AppColors.accent,
-                  trailingText: 'IDR',
-                  onTap: () {},
+                  trailingText: _selectedCurrencyCode,
+                  onTap: _openCurrencyPickerModal,
                 ),
                 _MenuTile(
                   icon: Icons.language_rounded,

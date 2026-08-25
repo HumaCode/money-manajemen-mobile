@@ -1,5 +1,5 @@
 class ApiUrl {
-  static const String baseUrl = 'http://192.168.1.6:8001/api/v1';
+  static const String baseUrl = 'http://192.168.1.3:8001/api/v1';
   static const String appKey = 'humacode2026';
 
   // Auth
@@ -36,4 +36,6 @@ class ApiUrl {
   static String savingGoalDetail(dynamic id) => '$baseUrl/saving-goals/$id';
   static String savingGoalAddSaving(dynamic id) =>
       '$baseUrl/saving-goals/$id/add-saving';
+  static String savingGoalContributionDetail(dynamic goalId, dynamic contributionId) =>
+      '$baseUrl/saving-goals/$goalId/contributions/$contributionId';
 }

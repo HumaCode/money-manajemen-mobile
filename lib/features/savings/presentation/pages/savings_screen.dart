@@ -4,7 +4,6 @@ import 'package:money_manajemen/app/theme/app_theme.dart';
 import 'package:money_manajemen/core/database/database_helper.dart';
 import 'package:money_manajemen/core/utils/formatters.dart';
 import 'package:money_manajemen/core/widgets/animated_background.dart';
-import 'package:money_manajemen/core/widgets/app_loader.dart';
 import 'package:money_manajemen/core/widgets/app_skeleton.dart';
 import 'package:money_manajemen/core/widgets/dynamic_island_toast.dart';
 import 'package:money_manajemen/features/auth/data/datasources/auth_local_data_source.dart';
@@ -12,7 +11,6 @@ import 'package:money_manajemen/features/profile/presentation/widgets/profile_he
 import '../../data/models/savings_goal_model.dart';
 import '../../data/datasources/savings_remote_data_source.dart';
 import '../widgets/add_savings_goal_sheet.dart';
-import '../widgets/add_savings_contribution_sheet.dart';
 import '../widgets/savings_goal_detail_sheet.dart';
 
 class SavingsScreen extends StatefulWidget {
@@ -80,10 +78,8 @@ class _SavingsScreenState extends State<SavingsScreen> with SingleTickerProvider
     final remoteGoals = await dataSource.getSavingGoals();
     if (mounted) {
       setState(() {
-        if (remoteGoals.isNotEmpty) {
-          _goals.clear();
-          _goals.addAll(remoteGoals);
-        }
+        _goals.clear();
+        _goals.addAll(remoteGoals);
         _isLoading = false;
       });
     }
@@ -111,6 +107,7 @@ class _SavingsScreenState extends State<SavingsScreen> with SingleTickerProvider
 
   void _openAddOrEditSheet({Data? goalToEdit}) async {
     final result = await AddSavingsGoalSheet.show(context, goalToEdit: goalToEdit);
+    FocusManager.instance.primaryFocus?.unfocus();
     if (result != null) {
       setState(() {
         if (goalToEdit != null) {
@@ -136,52 +133,15 @@ class _SavingsScreenState extends State<SavingsScreen> with SingleTickerProvider
   }
 
   void _openContributionSheet(Data goal) async {
-    final contribution = await SavingsGoalDetailSheet.show(
+    await SavingsGoalDetailSheet.show(
       context,
       goal: goal,
     );
+    FocusManager.instance.primaryFocus?.unfocus();
 
-    if (contribution != null) {
-      final addedAmount = int.tryParse(contribution.amount) ?? 0;
-      final newCurrent = goal.currentAmount + addedAmount;
-      final remaining = goal.targetAmount - newCurrent;
-      final pct = goal.targetAmount > 0 ? (newCurrent / goal.targetAmount) : 0.0;
-
-      final updatedGoal = Data(
-        id: goal.id,
-        name: goal.name,
-        description: goal.description,
-        accountId: goal.accountId,
-        accountName: goal.accountName,
-        currencyId: goal.currencyId,
-        currencyCode: goal.currencyCode,
-        currencySymbol: goal.currencySymbol,
-        targetAmount: goal.targetAmount,
-        currentAmount: newCurrent,
-        remainingAmount: remaining < 0 ? 0 : remaining,
-        monthlyTarget: goal.monthlyTarget,
-        progressPercentage: pct > 1.0 ? 1.0 : pct,
-        targetDate: goal.targetDate,
-        status: pct >= 1.0 ? 'completed' : goal.status,
-        icon: goal.icon,
-        color: goal.color,
-        createdAt: goal.createdAt,
-        updatedAt: DateTime.now(),
-      );
-
-      setState(() {
-        final index = _goals.indexWhere((g) => g.id == goal.id);
-        if (index != -1) _goals[index] = updatedGoal;
-      });
-
-      if (mounted) {
-        DynamicIslandToast.show(
-          context,
-          title: 'Setoran Berhasil 💰',
-          message: 'Setoran ${formatRupiah(addedAmount)} ditambahkan ke "${goal.name}"',
-          type: DynamicToastType.success,
-        );
-      }
+    // 🔄 Always sync goals list & replace local SQLite table with fresh server data live
+    if (mounted) {
+      _fetchGoals();
     }
   }
 
@@ -220,15 +180,14 @@ class _SavingsScreenState extends State<SavingsScreen> with SingleTickerProvider
                 localDataSource: AuthLocalDataSourceImpl(),
               );
               await dataSource.deleteSavingGoal(goal.id);
+              await dataSource.getSavingGoals();
               if (mounted) {
-                setState(() {
-                  _goals.removeWhere((g) => g.id == goal.id);
-                });
+                _fetchGoals();
                 DynamicIslandToast.show(
                   context,
-                  title: 'Dihapus',
+                  title: 'Target Dihapus',
                   message: 'Target tabungan telah dihapus',
-                  type: DynamicToastType.info,
+                  type: DynamicToastType.success,
                 );
               }
             },
@@ -247,8 +206,11 @@ class _SavingsScreenState extends State<SavingsScreen> with SingleTickerProvider
   Widget build(BuildContext context) {
     final filtered = _filteredGoals;
 
-    return Scaffold(
-      body: AnimatedBackground(
+    return GestureDetector(
+      onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+      behavior: HitTestBehavior.translucent,
+      child: Scaffold(
+        body: AnimatedBackground(
         child: SafeArea(
           child: Column(
             children: [
@@ -781,10 +743,11 @@ class _SavingsScreenState extends State<SavingsScreen> with SingleTickerProvider
               ),
             ),
           ],
-          ),
         ),
       ),
-    );
+    ),
+  ),
+);
   }
 
   Widget _buildSavingsSkeletonList() {

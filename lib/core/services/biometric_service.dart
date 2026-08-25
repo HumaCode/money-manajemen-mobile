@@ -27,7 +27,9 @@ class BiometricService {
     await prefs.setBool(_keyBiometricEnabled, enabled);
   }
 
-  static Future<bool> authenticate({String reason = 'Verifikasi sidik jari untuk masuk'}) async {
+  static Future<bool> authenticate({
+    String reason = 'Verifikasi sidik jari untuk masuk',
+  }) async {
     try {
       return await _auth.authenticate(
         localizedReason: reason,
@@ -38,7 +40,7 @@ class BiometricService {
         ),
       );
     } catch (e) {
-      debugPrint('Biometric auth error: $e');
+      // debugPrint('Biometric auth error: $e');
       return false;
     }
   }

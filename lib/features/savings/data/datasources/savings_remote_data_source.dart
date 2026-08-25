@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:money_manajemen/app/constants/api_url.dart';
 import 'package:money_manajemen/core/database/database_helper.dart';
@@ -39,7 +38,16 @@ abstract class SavingsRemoteDataSource {
     required int amount,
     required DateTime contributedAt,
     String? notes,
+    String? accountId,
   });
+  Future<Contribution?> updateSavingContribution(
+    String goalId,
+    String contributionId, {
+    required int amount,
+    required DateTime contributedAt,
+    String? notes,
+  });
+  Future<bool> deleteSavingContribution(String goalId, String contributionId);
   Future<bool> deleteSavingGoal(String id);
 }
 
@@ -73,15 +81,15 @@ class SavingsRemoteDataSourceImpl implements SavingsRemoteDataSource {
     try {
       final headers = await _getHeaders();
       final url = Uri.parse(ApiUrl.savingGoals);
-      debugPrint('DEBUG SAVINGS URL: $url');
-      debugPrint('DEBUG SAVINGS HEADERS: $headers');
+      // debugPrint('DEBUG SAVINGS URL: $url');
+      // debugPrint('DEBUG SAVINGS HEADERS: $headers');
 
       final response = await client
           .get(url, headers: headers)
           .timeout(const Duration(seconds: 10));
 
-      debugPrint('DEBUG SAVINGS STATUS: ${response.statusCode}');
-      debugPrint('DEBUG SAVINGS BODY: ${response.body}');
+      // debugPrint('DEBUG SAVINGS STATUS: ${response.statusCode}');
+      // debugPrint('DEBUG SAVINGS BODY: ${response.body}');
 
       final Map<String, dynamic> body = jsonDecode(response.body);
 
@@ -95,16 +103,16 @@ class SavingsRemoteDataSourceImpl implements SavingsRemoteDataSource {
         }
 
         final goals = dynamicList.map((j) => Data.fromJson(j)).toList();
-        debugPrint('DEBUG SAVINGS GOALS PARSED: ${goals.length}');
+        // debugPrint('DEBUG SAVINGS GOALS PARSED: ${goals.length}');
 
         // 🔄 Sync & replace SQLite local database table with fresh server data
         await DatabaseHelper.instance.replaceSavingGoals(goals);
 
         return goals;
       }
-    } catch (e, stack) {
-      debugPrint('DEBUG SAVINGS EXCEPTION: $e');
-      debugPrint('DEBUG SAVINGS STACK: $stack');
+    } catch (e) {
+      // debugPrint('DEBUG SAVINGS EXCEPTION: $e');
+      // debugPrint('DEBUG SAVINGS STACK: $stack');
     }
     return await getLocalSavingGoals();
   }
@@ -163,23 +171,20 @@ class SavingsRemoteDataSourceImpl implements SavingsRemoteDataSource {
       }
 
       final url = Uri.parse(ApiUrl.savingGoals);
-      debugPrint('DEBUG CREATE GOAL URL: $url');
-      debugPrint('DEBUG CREATE GOAL PAYLOAD: ${jsonEncode(payload)}');
+      // debugPrint('DEBUG CREATE GOAL URL: $url');
+      // debugPrint('DEBUG CREATE GOAL PAYLOAD: ${jsonEncode(payload)}');
 
       final response = await client
-          .post(
-            url,
-            headers: headers,
-            body: jsonEncode(payload),
-          )
+          .post(url, headers: headers, body: jsonEncode(payload))
           .timeout(const Duration(seconds: 10));
 
-      debugPrint('DEBUG CREATE GOAL STATUS: ${response.statusCode}');
-      debugPrint('DEBUG CREATE GOAL BODY: ${response.body}');
+      // debugPrint('DEBUG CREATE GOAL STATUS: ${response.statusCode}');
+      // debugPrint('DEBUG CREATE GOAL BODY: ${response.body}');
 
       final Map<String, dynamic> body = jsonDecode(response.body);
 
-      if ((response.statusCode == 200 || response.statusCode == 201) && body['success'] == true) {
+      if ((response.statusCode == 200 || response.statusCode == 201) &&
+          body['success'] == true) {
         dynamic dataObj = body['data'];
         if (dataObj is Map) {
           if (dataObj.containsKey('saving_goal')) {
@@ -191,11 +196,23 @@ class SavingsRemoteDataSourceImpl implements SavingsRemoteDataSource {
         }
       }
 
-      final errMsg = body['message'] ?? body['error'] ?? 'Server error ${response.statusCode}';
-      throw Exception(errMsg.toString());
-    } catch (e, stack) {
-      debugPrint('DEBUG CREATE GOAL EXCEPTION: $e');
-      debugPrint('DEBUG CREATE GOAL STACK: $stack');
+      String errMsg =
+          body['message']?.toString() ??
+          body['error']?.toString() ??
+          'Server error ${response.statusCode}';
+      if (body['data'] is Map) {
+        final errorsMap = body['data'] as Map;
+        final errorDetails = errorsMap.values
+            .map((v) => v is List ? v.join(', ') : v.toString())
+            .join('\n');
+        if (errorDetails.isNotEmpty) {
+          errMsg = '$errMsg:\n$errorDetails';
+        }
+      }
+      throw Exception(errMsg);
+    } catch (e) {
+      // debugPrint('DEBUG CREATE GOAL EXCEPTION: $e');
+      // debugPrint('DEBUG CREATE GOAL STACK: $stack');
       rethrow;
     }
   }
@@ -250,6 +267,61 @@ class SavingsRemoteDataSourceImpl implements SavingsRemoteDataSource {
     required int amount,
     required DateTime contributedAt,
     String? notes,
+    String? accountId,
+  }) async {
+    try {
+      final headers = await _getHeaders();
+      final dtStr =
+          "${contributedAt.year.toString().padLeft(4, '0')}-${contributedAt.month.toString().padLeft(2, '0')}-${contributedAt.day.toString().padLeft(2, '0')} ${contributedAt.hour.toString().padLeft(2, '0')}:${contributedAt.minute.toString().padLeft(2, '0')}:${contributedAt.second.toString().padLeft(2, '0')}";
+
+      final Map<String, dynamic> payload = {
+        'amount': amount,
+        'contributed_at': dtStr,
+        'notes': notes ?? '',
+      };
+      if (accountId != null && accountId.isNotEmpty) {
+        payload['account_id'] = accountId;
+      }
+
+      final response = await client
+          .post(
+            Uri.parse(ApiUrl.savingGoalAddSaving(id)),
+            headers: headers,
+            body: jsonEncode(payload),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      final Map<String, dynamic> body = jsonDecode(response.body);
+
+      if ((response.statusCode == 200 || response.statusCode == 201) &&
+          body['success'] == true) {
+        final dataObj = body['data'];
+        if (dataObj != null && dataObj['contribution'] != null) {
+          return Contribution.fromJson(dataObj['contribution']);
+        } else if (dataObj != null && dataObj is Map<String, dynamic>) {
+          return Contribution.fromJson(dataObj);
+        }
+      }
+
+      final errMsg =
+          body['message'] ??
+          body['error'] ??
+          'Server error ${response.statusCode}';
+      throw Exception(errMsg.toString());
+    } catch (e) {
+      // debugPrint('DEBUG ADD CONTRIBUTION EXCEPTION: $e');
+      // debugPrint('DEBUG ADD CONTRIBUTION STACK: $stack');
+      rethrow;
+    }
+  }
+
+  @override
+  Future<Contribution?> updateSavingContribution(
+    String goalId,
+    String contributionId, {
+    required int amount,
+    required DateTime contributedAt,
+    String? notes,
   }) async {
     try {
       final headers = await _getHeaders();
@@ -263,8 +335,10 @@ class SavingsRemoteDataSourceImpl implements SavingsRemoteDataSource {
       };
 
       final response = await client
-          .post(
-            Uri.parse(ApiUrl.savingGoalAddSaving(id)),
+          .put(
+            Uri.parse(
+              ApiUrl.savingGoalContributionDetail(goalId, contributionId),
+            ),
             headers: headers,
             body: jsonEncode(payload),
           )
@@ -272,14 +346,50 @@ class SavingsRemoteDataSourceImpl implements SavingsRemoteDataSource {
 
       final Map<String, dynamic> body = jsonDecode(response.body);
 
-      if ((response.statusCode == 200 || response.statusCode == 201) && body['success'] == true) {
+      if ((response.statusCode == 200 || response.statusCode == 201) &&
+          body['success'] == true) {
         final dataObj = body['data'];
         if (dataObj != null && dataObj['contribution'] != null) {
           return Contribution.fromJson(dataObj['contribution']);
+        } else if (dataObj != null && dataObj is Map<String, dynamic>) {
+          return Contribution.fromJson(dataObj);
         }
       }
-    } catch (_) {}
-    return null;
+
+      final errMsg =
+          body['message'] ??
+          body['error'] ??
+          'Server error ${response.statusCode}';
+      throw Exception(errMsg.toString());
+    } catch (e) {
+      // debugPrint('DEBUG UPDATE CONTRIBUTION EXCEPTION: $e');
+      // debugPrint('DEBUG UPDATE CONTRIBUTION STACK: $stack');
+      rethrow;
+    }
+  }
+
+  @override
+  Future<bool> deleteSavingContribution(
+    String goalId,
+    String contributionId,
+  ) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await client
+          .delete(
+            Uri.parse(
+              ApiUrl.savingGoalContributionDetail(goalId, contributionId),
+            ),
+            headers: headers,
+          )
+          .timeout(const Duration(seconds: 10));
+
+      final Map<String, dynamic> body = jsonDecode(response.body);
+      return response.statusCode == 200 &&
+          (body['success'] == true || body.isEmpty);
+    } catch (_) {
+      return false;
+    }
   }
 
   @override

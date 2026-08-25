@@ -10,12 +10,17 @@ abstract class AuthLocalDataSource {
   Future<UserDetail?> getUser();
   Future<void> saveBiometricToken(String token);
   Future<String?> getBiometricToken();
+  Future<void> saveSelectedCurrency(String id, String code);
+  Future<String?> getSelectedCurrencyId();
+  Future<String> getSelectedCurrencyCode();
 }
 
 class AuthLocalDataSourceImpl implements AuthLocalDataSource {
   static const String _tokenKey = 'AUTH_TOKEN';
   static const String _userKey = 'AUTH_USER';
   static const String _biometricTokenKey = 'BIOMETRIC_SAVED_TOKEN';
+  static const String _currencyIdKey = 'CURRENCY_ID';
+  static const String _currencyCodeKey = 'CURRENCY_CODE';
 
   @override
   Future<void> saveToken(String token) async {
@@ -64,5 +69,24 @@ class AuthLocalDataSourceImpl implements AuthLocalDataSource {
       } catch (_) {}
     }
     return null;
+  }
+
+  @override
+  Future<void> saveSelectedCurrency(String id, String code) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_currencyIdKey, id);
+    await prefs.setString(_currencyCodeKey, code);
+  }
+
+  @override
+  Future<String?> getSelectedCurrencyId() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_currencyIdKey);
+  }
+
+  @override
+  Future<String> getSelectedCurrencyCode() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_currencyCodeKey) ?? 'IDR';
   }
 }

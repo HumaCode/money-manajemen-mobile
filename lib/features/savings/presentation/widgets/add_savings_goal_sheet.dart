@@ -84,6 +84,7 @@ class _AddSavingsGoalSheetState extends State<AddSavingsGoalSheet> {
 
   @override
   void dispose() {
+    FocusManager.instance.primaryFocus?.unfocus();
     _titleController.dispose();
     _targetAmountController.dispose();
     _currentAmountController.dispose();
@@ -130,13 +131,18 @@ class _AddSavingsGoalSheetState extends State<AddSavingsGoalSheet> {
           description: _notesController.text.trim(),
         );
       } else {
+        final profileCurrencyId = await AuthLocalDataSourceImpl().getSelectedCurrencyId();
+        final currencyIdToUse = (profileCurrencyId != null && profileCurrencyId.isNotEmpty)
+            ? profileCurrencyId
+            : null;
+
         resultGoal = await dataSource.createSavingGoal(
           name: title,
           targetAmount: targetAmount,
           currentAmount: currentAmount,
           description: _notesController.text.trim(),
           accountId: _selectedAccount?.id,
-          currencyId: _selectedAccount?.currency,
+          currencyId: currencyIdToUse,
         );
       }
     } catch (e) {
