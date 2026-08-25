@@ -271,18 +271,6 @@ class DatabaseHelper {
     String colorHex = '#00FFA3',
   }) async {
     final db = await instance.database;
-    await db.execute('''
-      CREATE TABLE IF NOT EXISTS activities (
-        id TEXT PRIMARY KEY,
-        title TEXT NOT NULL,
-        message TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        icon_type TEXT NOT NULL,
-        color_hex TEXT NOT NULL,
-        is_read INTEGER NOT NULL DEFAULT 0
-      )
-    ''');
-
     await db.insert(
       'activities',
       {
@@ -300,18 +288,6 @@ class DatabaseHelper {
 
   Future<List<NotificationItem>> getActivities() async {
     final db = await instance.database;
-    await db.execute('''
-      CREATE TABLE IF NOT EXISTS activities (
-        id TEXT PRIMARY KEY,
-        title TEXT NOT NULL,
-        message TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        icon_type TEXT NOT NULL,
-        color_hex TEXT NOT NULL,
-        is_read INTEGER NOT NULL DEFAULT 0
-      )
-    ''');
-
     final result = await db.query('activities', orderBy: 'created_at DESC');
     if (result.isEmpty) {
       await addActivity(
@@ -387,30 +363,6 @@ class DatabaseHelper {
   // ---- Saving Goals Local SQLite Sync ----
   Future<void> replaceSavingGoals(List<saving_model.Data> goals) async {
     final db = await instance.database;
-    await db.execute('''
-      CREATE TABLE IF NOT EXISTS saving_goals (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        description TEXT,
-        account_id TEXT,
-        account_name TEXT,
-        currency_id TEXT,
-        currency_code TEXT,
-        currency_symbol TEXT,
-        target_amount INTEGER NOT NULL,
-        current_amount INTEGER NOT NULL,
-        remaining_amount INTEGER NOT NULL,
-        monthly_target INTEGER NOT NULL,
-        progress_percentage REAL NOT NULL,
-        target_date TEXT,
-        status TEXT NOT NULL,
-        icon TEXT,
-        color TEXT,
-        created_at TEXT,
-        updated_at TEXT
-      )
-    ''');
-
     final batch = db.batch();
     batch.delete('saving_goals');
     for (final goal in goals) {
@@ -425,30 +377,6 @@ class DatabaseHelper {
 
   Future<List<saving_model.Data>> getSavingGoals() async {
     final db = await instance.database;
-    await db.execute('''
-      CREATE TABLE IF NOT EXISTS saving_goals (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        description TEXT,
-        account_id TEXT,
-        account_name TEXT,
-        currency_id TEXT,
-        currency_code TEXT,
-        currency_symbol TEXT,
-        target_amount INTEGER NOT NULL,
-        current_amount INTEGER NOT NULL,
-        remaining_amount INTEGER NOT NULL,
-        monthly_target INTEGER NOT NULL,
-        progress_percentage REAL NOT NULL,
-        target_date TEXT,
-        status TEXT NOT NULL,
-        icon TEXT,
-        color TEXT,
-        created_at TEXT,
-        updated_at TEXT
-      )
-    ''');
-
     final result = await db.query('saving_goals', orderBy: 'created_at DESC');
     return result.map((json) => saving_model.Data.fromJson(json)).toList();
   }

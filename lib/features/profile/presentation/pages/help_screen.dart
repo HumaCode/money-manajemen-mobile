@@ -55,10 +55,10 @@ class _HelpScreenState extends State<HelpScreen> with SingleTickerProviderStateM
           'Pastikan nomor WhatsApp Anda aktif dan terhubung ke internet. Jika timer berakhir, Anda dapat mengeklik tombol "Kirim Ulang Kode OTP" pada lembar verifikasi.',
     ),
     _FaqItem(
-      category: 'AI Scanner Struk',
-      question: 'Bagaimana cara kerja Pemindaian Struk AI?',
+      category: 'Pindai Struk',
+      question: 'Bagaimana cara kerja Pemindaian Struk?',
       answer:
-          'Klik tombol tambah transaksi > Pindai Struk AI. Ambil foto struk belanja Anda. AI Gemini akan mengekstrak nama toko, tanggal, daftar item, dan total belanja secara otomatis.',
+          'Klik tombol tambah transaksi > Pindai Struk. Ambil foto struk belanja Anda. Sistem akan mengekstrak nama toko, tanggal, daftar item, dan total belanja secara otomatis.',
     ),
     _FaqItem(
       category: 'AI Scanner Struk',

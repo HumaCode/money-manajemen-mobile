@@ -713,10 +713,10 @@ class _DashboardScreenState extends State<DashboardScreen>
         final dateStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
         final items = submitResult.selectedItems;
         final totalDiscount = scanResult.discount;
-
-        // Proportional discount distribution for individual items
         final totalSubtotal = items.fold(0, (sum, i) => sum + i.totalPrice);
 
+        // Pre-process items: Merge zero-price modifier/option items (e.g. +Level 2 Rp 0) into preceding item
+        final List<Map<String, dynamic>> processedItems = [];
         for (int i = 0; i < items.length; i++) {
           final item = items[i];
           int itemNetPrice = item.totalPrice;
@@ -726,24 +726,47 @@ class _DashboardScreenState extends State<DashboardScreen>
             if (itemNetPrice < 0) itemNetPrice = 0;
           }
 
-          final title = item.qty > 1 ? '${item.name} (${item.qty}x)' : item.name;
+          final itemTitle = item.qty > 1 ? '${item.name} (${item.qty}x)' : item.name;
 
-          final payload = <String, dynamic>{
-            'title': title,
-            'description': title,
-            'amount': itemNetPrice,
+          if (itemNetPrice <= 0 && processedItems.isNotEmpty) {
+            final prevTitle = processedItems.last['title'] as String;
+            processedItems.last['title'] = '$prevTitle ($itemTitle)';
+            processedItems.last['description'] = processedItems.last['title'];
+          } else if (itemNetPrice > 0) {
+            processedItems.add({
+              'title': itemTitle,
+              'description': itemTitle,
+              'amount': itemNetPrice,
+              'type': 'expense',
+              'transaction_date': dateStr,
+              'account_id': submitResult.account.id,
+              'category_id': submitResult.category.id,
+            });
+          }
+        }
+
+        // Fallback: If no item had > 0 net price, create a single transaction for total amount
+        if (processedItems.isEmpty && submitResult.totalAmount > 0) {
+          processedItems.add({
+            'title': scanResult.title.isNotEmpty ? scanResult.title : 'Struk Belanja',
+            'description': 'Transaksi Struk Belanja',
+            'amount': submitResult.totalAmount,
             'type': 'expense',
             'transaction_date': dateStr,
             'account_id': submitResult.account.id,
             'category_id': submitResult.category.id,
-          };
+          });
+        }
 
-          await masterDS.createTransaction(payload);
+        int savedCount = 0;
+        for (final payload in processedItems) {
+          final success = await masterDS.createTransaction(payload);
+          if (success) savedCount++;
         }
 
         await DatabaseHelper.instance.addActivity(
-          title: 'Pindai Struk AI',
-          message: 'Berhasil menyimpan ${items.length} item transaksi dari struk belanja.',
+          title: 'Pindai Struk',
+          message: 'Berhasil menyimpan $savedCount item transaksi dari struk belanja.',
           iconType: 'scan',
           colorHex: '#00FFA3',
         );
@@ -751,8 +774,8 @@ class _DashboardScreenState extends State<DashboardScreen>
         if (mounted) {
           DynamicIslandToast.show(
             context,
-            title: 'Berhasil Disimpan',
-            message: '${items.length} item transaksi struk berhasil ditambahkan',
+            title: 'Berhasil Disimpan 🎉',
+            message: '$savedCount transaksi struk berhasil ditambahkan',
             type: DynamicToastType.success,
           );
           _loadDashboardData();
@@ -1242,8 +1265,8 @@ class _DashboardScreenState extends State<DashboardScreen>
               AppEmptyState(
                 icon: Icons.receipt_long_rounded,
                 title: 'Belum Ada Transaksi',
-                message: 'Catatan transaksimu masih kosong. Gunakan tombol + di bawah atau scan struk AI untuk mulai mencatat!',
-                buttonText: 'Pindai Struk AI',
+                message: 'Catatan transaksimu masih kosong. Gunakan tombol + di bawah atau scan struk untuk mulai mencatat!',
+                buttonText: 'Pindai Struk',
                 onButtonPressed: _handleScanReceipt,
               )
             else

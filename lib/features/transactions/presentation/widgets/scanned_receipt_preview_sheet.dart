@@ -215,13 +215,25 @@ class _ScannedReceiptPreviewSheetState extends State<ScannedReceiptPreviewSheet>
                         color: AppColors.textPrimary,
                       ),
                     ),
-                    Text(
-                      widget.receipt.title,
-                      style: const TextStyle(
-                        fontFamily: AppTextStyles.fontFamily,
-                        fontSize: 13,
-                        color: AppColors.textSecondary,
-                      ),
+                    Builder(
+                      builder: (context) {
+                        final rawTitle = widget.receipt.title.trim();
+                        final displayTitle = (rawTitle.isEmpty ||
+                                rawTitle.toLowerCase() == 'unknown' ||
+                                rawTitle.toLowerCase() == 'unknown merchant' ||
+                                rawTitle.toLowerCase() == 'null' ||
+                                rawTitle.toLowerCase() == 'n/a')
+                            ? 'Struk Belanja'
+                            : rawTitle;
+                        return Text(
+                          displayTitle,
+                          style: const TextStyle(
+                            fontFamily: AppTextStyles.fontFamily,
+                            fontSize: 13,
+                            color: AppColors.textSecondary,
+                          ),
+                        );
+                      },
                     ),
                   ],
                 ),
@@ -282,19 +294,23 @@ class _ScannedReceiptPreviewSheetState extends State<ScannedReceiptPreviewSheet>
                                 child: Row(
                                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                   children: [
-                                    Text(
-                                      acc.name,
-                                      style: const TextStyle(
-                                        fontFamily: AppTextStyles.fontFamily,
-                                        fontSize: 13,
-                                        color: AppColors.textPrimary,
+                                    Flexible(
+                                      child: Text(
+                                        acc.name,
+                                        style: const TextStyle(
+                                          fontFamily: AppTextStyles.fontFamily,
+                                          fontSize: 13,
+                                          color: AppColors.textPrimary,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
+                                    const SizedBox(width: 4),
                                     Text(
                                       formatRupiah(acc.balance),
                                       style: const TextStyle(
                                         fontFamily: AppTextStyles.fontFamily,
-                                        fontSize: 12,
+                                        fontSize: 11.5,
                                         fontWeight: FontWeight.w600,
                                         color: AppColors.accent,
                                       ),
@@ -350,6 +366,7 @@ class _ScannedReceiptPreviewSheetState extends State<ScannedReceiptPreviewSheet>
                                     fontSize: 13,
                                     color: AppColors.textPrimary,
                                   ),
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               );
                             }).toList(),

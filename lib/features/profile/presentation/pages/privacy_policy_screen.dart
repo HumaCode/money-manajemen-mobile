@@ -167,11 +167,11 @@ class _PrivacyPolicyScreenState extends State<PrivacyPolicyScreen> with SingleTi
                             'Seluruh komunikasi data antara aplikasi Android dan server dienkripsi menggunakan protokol HTTPS 256-Bit SSL. Data transaksi Anda juga disimpan secara lokal pada database SQLite terenkripsi di dalam perangkat Anda.',
                       ),
                       const InfoSectionCard(
-                        title: 'Pemrosesan Struk AI (Gemini)',
-                        icon: Icons.auto_awesome_rounded,
+                        title: 'Pemrosesan Pindai Struk',
+                        icon: Icons.document_scanner_rounded,
                         color: AppColors.purple,
                         content:
-                            'Saat Anda menggunakan fitur Pindai Struk AI, foto struk dikirim secara aman ke API Gemini untuk mengekstrak teks nominal dan nama transaksi. Foto struk diproses secara transient dan tidak disimpan secara permanen pada server AI.',
+                            'Saat Anda menggunakan fitur Pindai Struk, foto struk dikirim secara aman ke server untuk mengekstrak teks nominal dan nama transaksi. Foto struk diproses secara transient dan tidak disimpan secara permanen.',
                       ),
                       const InfoSectionCard(
                         title: 'Otentikasi 2FA WhatsApp',

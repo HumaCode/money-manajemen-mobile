@@ -129,12 +129,21 @@ class ReceiptScannerService {
         final Map<String, dynamic> json = jsonDecode(response.body);
         final data = json['data'] ?? json;
 
-        String title = data['merchant_name']?.toString() ??
+        String rawTitle = data['merchant_name']?.toString() ??
             data['merchant']?.toString() ??
             data['store_name']?.toString() ??
             data['title']?.toString() ??
             data['name']?.toString() ??
-            'Indomaret Jatinangor';
+            '';
+
+        String title = rawTitle.trim();
+        if (title.isEmpty ||
+            title.toLowerCase() == 'unknown' ||
+            title.toLowerCase() == 'unknown merchant' ||
+            title.toLowerCase() == 'null' ||
+            title.toLowerCase() == 'n/a') {
+          title = 'Struk Belanja';
+        }
 
         int amount = 0;
         final rawAmount = data['total_amount'] ?? data['amount'] ?? data['total'] ?? data['grand_total'];
