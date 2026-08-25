@@ -16,11 +16,11 @@ A cutting-edge, futuristic, and feature-packed personal finance tracking applica
 
 | Splash Screen & Animations | Financial Dashboard | Analytics & Charts |
 | :---: | :---: | :---: |
-| <img src="https://github.com/user-attachments/assets/8be9d276-2a4a-4b8c-9151-ef3a5563b75f" width="240" /> | <img src="https://github.com/user-attachments/assets/ce7f4c2b-9d21-41c4-a63f-f2bfb28272ee" width="240" /> | <img src="https://github.com/user-attachments/assets/1f8d71ee-b3f3-4f19-801b-c9a1e62be838" width="240" /> |
+|<img src="https://github.com/user-attachments/assets/df63a6e5-e10f-4984-8339-2d39f1f82fae" width="240" /> | <img src="https://github.com/user-attachments/assets/1f8d71ee-b3f3-4f19-801b-c9a1e62be838" width="240" /> | <img src="https://github.com/user-attachments/assets/50fe8ff7-38bf-4c82-936b-78e072dd3f7d" width="240" /> |
 
 | Smart Budgets | Savings Goals & Targets |
 | :---: | :---: |
-| <img src="https://github.com/user-attachments/assets/df63a6e5-e10f-4984-8339-2d39f1f82fae" width="240" /> | <img src="https://github.com/user-attachments/assets/50fe8ff7-38bf-4c82-936b-78e072dd3f7d" width="240" /> |
+|  <img src="https://github.com/user-attachments/assets/8be9d276-2a4a-4b8c-9151-ef3a5563b75f" width="240" /> | <img src="https://github.com/user-attachments/assets/ce7f4c2b-9d21-41c4-a63f-f2bfb28272ee" width="240" /> |
 
 </div>
 
