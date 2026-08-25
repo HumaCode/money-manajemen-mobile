@@ -11,9 +11,9 @@ import 'package:money_manajemen/features/dashboard/presentation/pages/dashboard_
 import 'package:money_manajemen/features/transactions/presentation/pages/transactions_screen.dart';
 import 'package:money_manajemen/features/analytics/presentation/pages/analytics_screen.dart';
 import 'package:money_manajemen/features/auth/presentation/pages/login_screen.dart';
-import 'package:money_manajemen/features/auth/data/datasources/auth_local_data_source.dart';
-import 'package:money_manajemen/features/auth/data/datasources/auth_remote_data_source.dart';
-import 'package:money_manajemen/features/auth/data/models/user_model.dart';
+import 'package:money_manajemen/data/datasources/auth_local_data_source.dart';
+import 'package:money_manajemen/data/datasources/auth_remote_data_source.dart';
+import 'package:money_manajemen/data/models/user_model.dart';
 import 'package:money_manajemen/features/profile/presentation/widgets/edit_profile_sheet.dart';
 import 'package:money_manajemen/features/profile/presentation/widgets/two_factor_security_sheet.dart';
 import 'package:money_manajemen/features/profile/presentation/pages/help_screen.dart';

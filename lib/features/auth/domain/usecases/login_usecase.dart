@@ -1,4 +1,4 @@
-import 'package:money_manajemen/features/auth/data/models/user_model.dart';
+import 'package:money_manajemen/data/models/user_model.dart';
 import 'package:money_manajemen/features/auth/domain/repositories/auth_repository.dart';
 
 class LoginUseCase {

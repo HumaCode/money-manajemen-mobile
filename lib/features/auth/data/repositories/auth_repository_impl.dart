@@ -1,6 +1,6 @@
-import 'package:money_manajemen/features/auth/data/datasources/auth_local_data_source.dart';
-import 'package:money_manajemen/features/auth/data/datasources/auth_remote_data_source.dart';
-import 'package:money_manajemen/features/auth/data/models/user_model.dart';
+import 'package:money_manajemen/data/datasources/auth_local_data_source.dart';
+import 'package:money_manajemen/data/datasources/auth_remote_data_source.dart';
+import 'package:money_manajemen/data/models/user_model.dart';
 import 'package:money_manajemen/features/auth/domain/repositories/auth_repository.dart';
 
 class AuthRepositoryImpl implements AuthRepository {

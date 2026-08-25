@@ -6,10 +6,10 @@ import 'package:money_manajemen/core/utils/formatters.dart';
 import 'package:money_manajemen/core/widgets/animated_background.dart';
 import 'package:money_manajemen/core/widgets/app_skeleton.dart';
 import 'package:money_manajemen/core/widgets/dynamic_island_toast.dart';
-import 'package:money_manajemen/features/auth/data/datasources/auth_local_data_source.dart';
+import 'package:money_manajemen/data/datasources/auth_local_data_source.dart';
+import 'package:money_manajemen/data/datasources/savings_remote_data_source.dart';
+import 'package:money_manajemen/data/models/savings_goal_model.dart';
 import 'package:money_manajemen/features/profile/presentation/widgets/profile_header_bar.dart';
-import '../../data/models/savings_goal_model.dart';
-import '../../data/datasources/savings_remote_data_source.dart';
 import '../widgets/add_savings_goal_sheet.dart';
 import '../widgets/savings_goal_detail_sheet.dart';
 

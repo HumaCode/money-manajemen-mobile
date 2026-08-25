@@ -13,7 +13,7 @@ class AccountModel {
     required this.currency,
   });
 
-    factory AccountModel.fromJson(Map<String, dynamic> json) {
+  factory AccountModel.fromJson(Map<String, dynamic> json) {
     int parsedBalance = 0;
     dynamic rawBalance = json['balance'] ??
         json['currentBalance'] ??

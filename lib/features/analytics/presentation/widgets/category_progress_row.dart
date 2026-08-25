@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:money_manajemen/app/theme/app_theme.dart';
-import '../models/category_spend_model.dart';
+import 'package:money_manajemen/data/models/category_spend_model.dart';
 import 'package:money_manajemen/core/utils/formatters.dart';
 
 class CategoryProgressRow extends StatelessWidget {

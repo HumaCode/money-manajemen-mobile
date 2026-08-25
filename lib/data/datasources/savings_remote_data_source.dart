@@ -3,9 +3,9 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:money_manajemen/app/constants/api_url.dart';
 import 'package:money_manajemen/core/database/database_helper.dart';
-import 'package:money_manajemen/features/auth/data/datasources/auth_local_data_source.dart';
-import '../models/savings_goal_model.dart';
-import '../models/savings_contribution_model.dart' hide Data;
+import 'package:money_manajemen/data/datasources/auth_local_data_source.dart';
+import 'package:money_manajemen/data/models/savings_goal_model.dart';
+import 'package:money_manajemen/data/models/savings_contribution_model.dart' hide Data;
 
 abstract class SavingsRemoteDataSource {
   Future<List<Data>> getSavingGoals();
@@ -72,8 +72,8 @@ class SavingsRemoteDataSourceImpl implements SavingsRemoteDataSource {
   }
 
   @override
-  Future<List<Data>> getLocalSavingGoals() async {
-    return await DatabaseHelper.instance.getSavingGoals();
+  Future<List<Data>> getLocalSavingGoals() {
+    return DatabaseHelper.instance.getSavingGoals();
   }
 
   @override
@@ -81,15 +81,10 @@ class SavingsRemoteDataSourceImpl implements SavingsRemoteDataSource {
     try {
       final headers = await _getHeaders();
       final url = Uri.parse(ApiUrl.savingGoals);
-      // debugPrint('DEBUG SAVINGS URL: $url');
-      // debugPrint('DEBUG SAVINGS HEADERS: $headers');
 
       final response = await client
           .get(url, headers: headers)
           .timeout(const Duration(seconds: 10));
-
-      // debugPrint('DEBUG SAVINGS STATUS: ${response.statusCode}');
-      // debugPrint('DEBUG SAVINGS BODY: ${response.body}');
 
       final Map<String, dynamic> body = jsonDecode(response.body);
 
@@ -103,17 +98,11 @@ class SavingsRemoteDataSourceImpl implements SavingsRemoteDataSource {
         }
 
         final goals = dynamicList.map((j) => Data.fromJson(j)).toList();
-        // debugPrint('DEBUG SAVINGS GOALS PARSED: ${goals.length}');
-
-        // 🔄 Sync & replace SQLite local database table with fresh server data
         await DatabaseHelper.instance.replaceSavingGoals(goals);
 
         return goals;
       }
-    } catch (e) {
-      // debugPrint('DEBUG SAVINGS EXCEPTION: $e');
-      // debugPrint('DEBUG SAVINGS STACK: $stack');
-    }
+    } catch (e) {}
     return await getLocalSavingGoals();
   }
 
@@ -171,15 +160,10 @@ class SavingsRemoteDataSourceImpl implements SavingsRemoteDataSource {
       }
 
       final url = Uri.parse(ApiUrl.savingGoals);
-      // debugPrint('DEBUG CREATE GOAL URL: $url');
-      // debugPrint('DEBUG CREATE GOAL PAYLOAD: ${jsonEncode(payload)}');
 
       final response = await client
           .post(url, headers: headers, body: jsonEncode(payload))
           .timeout(const Duration(seconds: 10));
-
-      // debugPrint('DEBUG CREATE GOAL STATUS: ${response.statusCode}');
-      // debugPrint('DEBUG CREATE GOAL BODY: ${response.body}');
 
       final Map<String, dynamic> body = jsonDecode(response.body);
 
@@ -211,8 +195,6 @@ class SavingsRemoteDataSourceImpl implements SavingsRemoteDataSource {
       }
       throw Exception(errMsg);
     } catch (e) {
-      // debugPrint('DEBUG CREATE GOAL EXCEPTION: $e');
-      // debugPrint('DEBUG CREATE GOAL STACK: $stack');
       rethrow;
     }
   }
@@ -309,8 +291,6 @@ class SavingsRemoteDataSourceImpl implements SavingsRemoteDataSource {
           'Server error ${response.statusCode}';
       throw Exception(errMsg.toString());
     } catch (e) {
-      // debugPrint('DEBUG ADD CONTRIBUTION EXCEPTION: $e');
-      // debugPrint('DEBUG ADD CONTRIBUTION STACK: $stack');
       rethrow;
     }
   }
@@ -362,8 +342,6 @@ class SavingsRemoteDataSourceImpl implements SavingsRemoteDataSource {
           'Server error ${response.statusCode}';
       throw Exception(errMsg.toString());
     } catch (e) {
-      // debugPrint('DEBUG UPDATE CONTRIBUTION EXCEPTION: $e');
-      // debugPrint('DEBUG UPDATE CONTRIBUTION STACK: $stack');
       rethrow;
     }
   }

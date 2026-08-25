@@ -3,7 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:money_manajemen/app/theme/app_theme.dart';
 import 'package:money_manajemen/core/widgets/animated_background.dart';
-import 'package:money_manajemen/features/auth/data/datasources/auth_local_data_source.dart';
+import 'package:money_manajemen/data/datasources/auth_local_data_source.dart';
 import 'package:money_manajemen/features/dashboard/presentation/pages/dashboard_screen.dart';
 import 'login_screen.dart';
 

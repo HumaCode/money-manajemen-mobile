@@ -12,7 +12,7 @@ import 'package:money_manajemen/features/dashboard/presentation/pages/dashboard_
 import 'register_screen.dart';
 
 import 'package:money_manajemen/core/services/biometric_service.dart';
-import 'package:money_manajemen/features/auth/data/datasources/auth_local_data_source.dart';
+import 'package:money_manajemen/data/datasources/auth_local_data_source.dart';
 import 'package:money_manajemen/core/widgets/dynamic_island_toast.dart';
 import 'package:money_manajemen/features/auth/presentation/widgets/login_2fa_otp_sheet.dart';
 

@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:money_manajemen/features/auth/data/models/user_model.dart';
+import 'package:money_manajemen/data/models/user_model.dart';
 
 abstract class AuthLocalDataSource {
   Future<void> saveToken(String token);

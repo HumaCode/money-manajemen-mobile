@@ -1,9 +1,9 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:money_manajemen/app/constants/api_url.dart';
-import 'package:money_manajemen/features/auth/data/datasources/auth_local_data_source.dart';
-import 'package:money_manajemen/features/transactions/data/models/transaction_model.dart';
-import '../models/analytics_model.dart';
+import 'package:money_manajemen/data/datasources/auth_local_data_source.dart';
+import 'package:money_manajemen/data/models/transaction_model.dart';
+import 'package:money_manajemen/data/models/analytics_model.dart';
 
 abstract class AnalyticsRemoteDataSource {
   Future<WalletSummaryModel> getWalletSummary({String? period});

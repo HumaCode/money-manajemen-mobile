@@ -4,8 +4,8 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:money_manajemen/app/constants/api_url.dart';
 import 'package:money_manajemen/core/database/database_helper.dart';
-import 'package:money_manajemen/features/auth/data/datasources/auth_local_data_source.dart';
-import '../models/transaction_model.dart';
+import 'package:money_manajemen/data/datasources/auth_local_data_source.dart';
+import 'package:money_manajemen/data/models/transaction_model.dart';
 
 abstract class TransactionRemoteDataSource {
   Future<List<DataTransaksi>> getTransactions({int maxRetries = 3});
@@ -54,7 +54,6 @@ class TransactionRemoteDataSourceImpl implements TransactionRemoteDataSource {
         if (response.statusCode == 200 && responseJson['success'] == true) {
           final transactionResponse = TransactionResponseModel.fromJson(responseJson);
           
-          // Sync server transactions to SQLite database
           final mappedTx = transactionResponse.data
               .map((d) => TransactionModel.fromDataTransaksi(d))
               .toList();
@@ -69,7 +68,6 @@ class TransactionRemoteDataSourceImpl implements TransactionRemoteDataSource {
         if (attempt >= maxRetries) {
           final localTx = await DatabaseHelper.instance.getTransactions();
           if (localTx.isNotEmpty) {
-            // Return empty remote list if local fallback is present
             return [];
           }
           if (e is FormatException) {

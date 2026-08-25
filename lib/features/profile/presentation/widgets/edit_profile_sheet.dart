@@ -4,8 +4,8 @@ import 'package:money_manajemen/app/theme/app_theme.dart';
 import 'package:money_manajemen/core/widgets/app_text_field.dart';
 import 'package:money_manajemen/core/widgets/dynamic_island_toast.dart';
 import 'package:money_manajemen/core/widgets/primary_button.dart';
-import 'package:money_manajemen/features/auth/data/datasources/auth_remote_data_source.dart';
-import 'package:money_manajemen/features/auth/data/models/user_model.dart';
+import 'package:money_manajemen/data/datasources/auth_remote_data_source.dart';
+import 'package:money_manajemen/data/models/user_model.dart';
 
 class EditProfileSheet extends StatefulWidget {
   final UserDetail user;
