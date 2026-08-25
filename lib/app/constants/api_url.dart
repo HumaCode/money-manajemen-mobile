@@ -38,4 +38,11 @@ class ApiUrl {
       '$baseUrl/saving-goals/$id/add-saving';
   static String savingGoalContributionDetail(dynamic goalId, dynamic contributionId) =>
       '$baseUrl/saving-goals/$goalId/contributions/$contributionId';
+
+  // Budgets
+  static const String budgets = '$baseUrl/budgets';
+  static const String budgetPeriods = '$baseUrl/budget-periods';
+  static String budgetDetail(dynamic id) => '$baseUrl/budgets/$id';
+  static String budgetAddExpense(dynamic id) => '$baseUrl/budgets/$id/add-expense';
+  static String budgetExpenses(dynamic id) => '$baseUrl/budgets/$id/expenses';
 }

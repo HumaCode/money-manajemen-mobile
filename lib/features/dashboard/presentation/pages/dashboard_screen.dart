@@ -9,6 +9,7 @@ import 'package:money_manajemen/features/transactions/presentation/pages/transac
 import 'package:money_manajemen/features/analytics/presentation/pages/analytics_screen.dart';
 import 'package:money_manajemen/features/profile/presentation/pages/profile_screen.dart';
 import 'package:money_manajemen/features/savings/presentation/pages/savings_screen.dart';
+import 'package:money_manajemen/features/budgets/presentation/pages/budgets_screen.dart';
 import 'package:money_manajemen/features/auth/presentation/pages/login_screen.dart';
 import 'package:money_manajemen/features/auth/data/datasources/auth_local_data_source.dart';
 import 'package:money_manajemen/features/auth/data/models/user_model.dart';
@@ -1144,7 +1145,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                       transitionDuration: const Duration(milliseconds: 300),
                       pageBuilder: (_, animation, __) => FadeTransition(
                         opacity: animation,
-                        child: const AnalyticsScreen(),
+                        child: const BudgetsScreen(),
                       ),
                     ),
                   ).then((_) => _loadDashboardData(showLoading: false));
