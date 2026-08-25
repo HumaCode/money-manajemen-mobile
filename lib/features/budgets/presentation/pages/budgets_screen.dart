@@ -11,7 +11,6 @@ import '../../data/models/budget_model.dart';
 import '../../data/models/budget_expense_model.dart';
 import '../../data/datasources/budget_remote_data_source.dart';
 import '../widgets/add_budget_sheet.dart';
-import '../widgets/add_budget_expense_sheet.dart';
 
 class BudgetsScreen extends StatefulWidget {
   const BudgetsScreen({super.key});
@@ -154,38 +153,32 @@ class _BudgetsScreenState extends State<BudgetsScreen> with SingleTickerProvider
       backgroundColor: AppColors.bgDark,
       body: AnimatedBackground(
         child: SafeArea(
-          child: RefreshIndicator(
-            onRefresh: _fetchBudgets,
-            color: AppColors.accent,
-            backgroundColor: AppColors.bgCard,
-            child: CustomScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              slivers: [
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                    child: FadeTransition(
-                      opacity: _fadeFor(0.0, 0.3),
-                      child: SlideTransition(
-                        position: _slideFor(0.0, 0.3),
-                        child: const ProfileHeaderBar(),
+          child: Column(
+            children: [
+              FadeTransition(
+                opacity: _fadeFor(0.0, 0.3),
+                child: const ProfileHeaderBar(title: 'Anggaran'),
+              ),
+              Expanded(
+                child: RefreshIndicator(
+                  onRefresh: _fetchBudgets,
+                  color: AppColors.accent,
+                  backgroundColor: AppColors.bgCard,
+                  child: CustomScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    slivers: [
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          child: FadeTransition(
+                            opacity: _fadeFor(0.1, 0.4),
+                            child: SlideTransition(
+                              position: _slideFor(0.1, 0.4),
+                              child: _buildHeaderBanner(),
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                ),
-
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: FadeTransition(
-                      opacity: _fadeFor(0.1, 0.4),
-                      child: SlideTransition(
-                        position: _slideFor(0.1, 0.4),
-                        child: _buildHeaderBanner(),
-                      ),
-                    ),
-                  ),
-                ),
 
                 SliverToBoxAdapter(
                   child: Padding(
@@ -218,7 +211,7 @@ class _BudgetsScreenState extends State<BudgetsScreen> with SingleTickerProvider
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     sliver: SliverList(
                       delegate: SliverChildBuilderDelegate(
-                        (_, __) => const Padding(
+                        (_, _) => const Padding(
                           padding: EdgeInsets.only(bottom: 14),
                           child: AppSkeleton(height: 140, borderRadius: 20),
                         ),
@@ -261,28 +254,24 @@ class _BudgetsScreenState extends State<BudgetsScreen> with SingleTickerProvider
                       ),
                     ),
                   ),
-              ],
-            ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
+      floatingActionButton: FloatingActionButton(
+        shape: const CircleBorder(),
+        backgroundColor: AppColors.accent,
         onPressed: () async {
           final created = await AddBudgetSheet.show(context);
           if (created != null) {
             _fetchBudgets();
           }
         },
-        backgroundColor: AppColors.accent,
-        icon: const Icon(Icons.add_rounded, color: Colors.black),
-        label: const Text(
-          'Tambah Budget',
-          style: TextStyle(
-            color: Colors.black,
-            fontWeight: FontWeight.bold,
-            fontFamily: AppTextStyles.fontFamily,
-          ),
-        ),
+        child: const Icon(Icons.add_rounded, color: Colors.black, size: 28),
       ),
     );
   }
@@ -368,7 +357,7 @@ class _BudgetsScreenState extends State<BudgetsScreen> with SingleTickerProvider
           Align(
             alignment: Alignment.centerLeft,
             child: Text(
-              Formatters.formatRupiah(_totalAllocated),
+              formatRupiah(_totalAllocated),
               style: const TextStyle(color: AppColors.textPrimary, fontSize: 24, fontWeight: FontWeight.bold),
             ),
           ),
@@ -384,7 +373,7 @@ class _BudgetsScreenState extends State<BudgetsScreen> with SingleTickerProvider
                     const Text('Total Terpakai', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
                     const SizedBox(height: 2),
                     Text(
-                      Formatters.formatRupiah(_totalSpent),
+                      formatRupiah(_totalSpent),
                       style: const TextStyle(color: AppColors.warning, fontSize: 14, fontWeight: FontWeight.bold),
                     ),
                   ],
@@ -397,7 +386,7 @@ class _BudgetsScreenState extends State<BudgetsScreen> with SingleTickerProvider
                     const Text('Sisa Batas Budget', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
                     const SizedBox(height: 2),
                     Text(
-                      Formatters.formatRupiah(_totalRemaining < 0 ? 0 : _totalRemaining),
+                      formatRupiah(_totalRemaining < 0 ? 0 : _totalRemaining),
                       style: const TextStyle(color: AppColors.accent, fontSize: 14, fontWeight: FontWeight.bold),
                     ),
                   ],
@@ -444,7 +433,11 @@ class _BudgetsScreenState extends State<BudgetsScreen> with SingleTickerProvider
   }
 
   Widget _buildBudgetCard(BudgetModel item) {
-    final pct = (item.progressPercentage * 100).clamp(0.0, 100.0);
+    final pct = item.totalAmount > 0
+        ? ((item.totalSpent / item.totalAmount) * 100).clamp(0.0, 100.0)
+        : (item.progressPercentage > 1.0
+            ? item.progressPercentage
+            : item.progressPercentage * 100).clamp(0.0, 100.0);
     final isOver = item.status == 'over_budget' || item.totalSpent > item.totalAmount;
     final isNear = item.status == 'near_limit' || pct >= 80;
 
@@ -511,11 +504,11 @@ class _BudgetsScreenState extends State<BudgetsScreen> with SingleTickerProvider
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Terpakai: ${Formatters.formatRupiah(item.totalSpent)}',
+                'Terpakai: ${formatRupiah(item.totalSpent)}',
                 style: TextStyle(color: isOver ? AppColors.error : AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600),
               ),
               Text(
-                'Plafon: ${Formatters.formatRupiah(item.totalAmount)}',
+                'Plafon: ${formatRupiah(item.totalAmount)}',
                 style: const TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.bold),
               ),
             ],
@@ -535,16 +528,6 @@ class _BudgetsScreenState extends State<BudgetsScreen> with SingleTickerProvider
               ),
               Row(
                 children: [
-                  IconButton(
-                    icon: const Icon(Icons.add_circle_outline_rounded, color: AppColors.warning, size: 20),
-                    tooltip: 'Catat Pengeluaran',
-                    onPressed: () async {
-                      final added = await AddBudgetExpenseSheet.show(context, budget: item);
-                      if (added == true) {
-                        _fetchBudgets();
-                      }
-                    },
-                  ),
                   IconButton(
                     icon: const Icon(Icons.edit_outlined, color: AppColors.textSecondary, size: 20),
                     tooltip: 'Edit Budget',
@@ -676,7 +659,7 @@ class _BudgetExpensesListSheetState extends State<_BudgetExpensesListSheet> {
                                       ],
                                     ),
                                   ),
-                                  Text(Formatters.formatRupiah(exp.spentAmount), style: const TextStyle(color: AppColors.warning, fontWeight: FontWeight.bold, fontSize: 14)),
+                                  Text(formatRupiah(exp.spentAmount), style: const TextStyle(color: AppColors.warning, fontWeight: FontWeight.bold, fontSize: 14)),
                                 ],
                               ),
                             );

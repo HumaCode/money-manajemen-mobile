@@ -7,6 +7,7 @@ class AppColor {
 
   // Background Colors
   static const Color bgDeep = Color(0xFF0A0E1A);
+  static const Color bgDark = bgDeep;
   static const Color bgCard = Color(0xFF111827);
   static const Color bgCardHover = Color(0xFF1A2332);
   static const Color bgInput = Color(0x0AFFFFFF); // rgba(255,255,255,0.04)

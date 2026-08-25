@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:money_manajemen/app/theme/app_theme.dart';
+import 'package:money_manajemen/core/utils/formatters.dart';
 import 'package:money_manajemen/core/widgets/app_text_field.dart';
 import 'package:money_manajemen/core/widgets/primary_button.dart';
 import 'package:money_manajemen/core/widgets/dynamic_island_toast.dart';
@@ -50,7 +52,7 @@ class _AddBudgetSheetState extends State<AddBudgetSheet> {
     super.initState();
     if (widget.budgetToEdit != null) {
       _nameController.text = widget.budgetToEdit!.name;
-      _totalAmountController.text = widget.budgetToEdit!.totalAmount.toString();
+      _totalAmountController.text = ThousandsSeparatorInputFormatter.formatNumberWithDots(widget.budgetToEdit!.totalAmount.toString());
       _selectedPeriod = widget.budgetToEdit!.period.isNotEmpty ? widget.budgetToEdit!.period : 'monthly';
       _rolloverUnused = widget.budgetToEdit!.rolloverUnused;
       _notesController.text = widget.budgetToEdit!.notes;
@@ -234,18 +236,21 @@ class _AddBudgetSheetState extends State<AddBudgetSheet> {
               ),
               const SizedBox(height: 24),
               AppTextField(
+                controller: _totalAmountController,
+                label: 'Total Batas Anggaran (Rp)',
+                hintText: 'Misal: 2.000.000',
+                keyboardType: TextInputType.number,
+                prefixIcon: Icons.payments_outlined,
+                inputFormatters: [
+                  ThousandsSeparatorInputFormatter(),
+                ],
+              ),
+              const SizedBox(height: 16),
+              AppTextField(
                 controller: _nameController,
                 label: 'Nama Anggaran',
                 hintText: 'Misal: Makan Bulanan, Bensin, Hiburan',
                 prefixIcon: Icons.label_outline_rounded,
-              ),
-              const SizedBox(height: 16),
-              AppTextField(
-                controller: _totalAmountController,
-                label: 'Total Batas Anggaran (Rp)',
-                hintText: 'Misal: 2000000',
-                keyboardType: TextInputType.number,
-                prefixIcon: Icons.payments_outlined,
               ),
               const SizedBox(height: 16),
 
@@ -348,7 +353,7 @@ class _AddBudgetSheetState extends State<AddBudgetSheet> {
               ),
               const SizedBox(height: 24),
               PrimaryButton(
-                text: isEdit ? 'Simpan Perubahan' : 'Buat Anggaran',
+                label: isEdit ? 'Simpan Perubahan' : 'Buat Anggaran',
                 isLoading: _isLoading,
                 onPressed: _handleSave,
               ),

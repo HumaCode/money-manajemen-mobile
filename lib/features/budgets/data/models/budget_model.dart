@@ -86,6 +86,7 @@ class BudgetModel {
     final spent = _parseInt(json["total_spent"]);
     final remaining = _parseInt(json["remaining_amount"], total - spent);
     final rawPct = _parseDouble(json["progress_percentage"]);
+    final calculatedPct = total > 0 ? ((spent / total) * 100.0) : rawPct;
 
     return BudgetModel(
       id: json["id"]?.toString() ?? '',
@@ -99,7 +100,7 @@ class BudgetModel {
       spentAmountFormatted: json["spent_amount_formatted"]?.toString() ?? '',
       remainingAmount: remaining < 0 ? 0 : remaining,
       remainingAmountFormatted: json["remaining_amount_formatted"]?.toString() ?? '',
-      progressPercentage: rawPct,
+      progressPercentage: calculatedPct,
       period: json["period"]?.toString() ?? 'monthly',
       startDate: _parseDate(json["start_date"]),
       endDate: _parseDate(json["end_date"]),

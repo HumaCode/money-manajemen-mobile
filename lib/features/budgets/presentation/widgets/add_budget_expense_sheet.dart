@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:money_manajemen/app/theme/app_theme.dart';
+import 'package:money_manajemen/core/utils/formatters.dart';
 import 'package:money_manajemen/core/widgets/app_text_field.dart';
 import 'package:money_manajemen/core/widgets/primary_button.dart';
 import 'package:money_manajemen/core/widgets/dynamic_island_toast.dart';
@@ -267,23 +269,26 @@ class _AddBudgetExpenseSheetState extends State<AddBudgetExpenseSheet> {
               AppTextField(
                 controller: _amountController,
                 label: 'Nominal Pengeluaran (Rp)',
-                hintText: 'Misal: 50000',
+                icon: Icons.payments_outlined,
+                hintText: 'Misal: 50.000',
                 keyboardType: TextInputType.number,
-                prefixIcon: Icons.payments_outlined,
+                inputFormatters: [
+                  ThousandsSeparatorInputFormatter(),
+                ],
               ),
 
               const SizedBox(height: 16),
               AppTextField(
                 controller: _notesController,
                 label: 'Catatan Opsional',
+                icon: Icons.notes_rounded,
                 hintText: 'Misal: Makan siang bakso paket komplit',
-                prefixIcon: Icons.notes_rounded,
                 maxLines: 2,
               ),
 
               const SizedBox(height: 24),
               PrimaryButton(
-                text: 'Catat Pengeluaran',
+                label: 'Catat Pengeluaran',
                 isLoading: _isLoading,
                 onPressed: _handleSave,
               ),

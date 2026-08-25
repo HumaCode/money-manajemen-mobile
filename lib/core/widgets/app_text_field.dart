@@ -6,7 +6,10 @@ import 'package:money_manajemen/app/theme/app_theme.dart';
 /// obscure-text toggle (for passwords).
 class AppTextField extends StatefulWidget {
   final String label;
-  final IconData icon;
+  final IconData? icon;
+  final IconData? prefixIcon;
+  final String? hintText;
+  final int? maxLines;
   final bool obscureText;
   final TextEditingController? controller;
   final TextInputType keyboardType;
@@ -15,12 +18,17 @@ class AppTextField extends StatefulWidget {
   const AppTextField({
     super.key,
     required this.label,
-    required this.icon,
+    this.icon,
+    this.prefixIcon,
+    this.hintText,
+    this.maxLines = 1,
     this.obscureText = false,
     this.controller,
     this.keyboardType = TextInputType.text,
     this.inputFormatters,
   });
+
+  IconData? get effectiveIcon => icon ?? prefixIcon;
 
   @override
   State<AppTextField> createState() => _AppTextFieldState();
@@ -74,9 +82,10 @@ class _AppTextFieldState extends State<AppTextField> {
       child: TextField(
         controller: widget.controller,
         focusNode: _focusNode,
-        obscureText: _obscure,
+        obscureText: widget.obscureText ? _obscure : false,
         keyboardType: widget.keyboardType,
         inputFormatters: widget.inputFormatters,
+        maxLines: widget.obscureText ? 1 : widget.maxLines,
         style: const TextStyle(
           fontFamily: AppTextStyles.fontFamily,
           fontSize: 15,
@@ -85,17 +94,25 @@ class _AppTextFieldState extends State<AppTextField> {
         cursorColor: AppColors.accent,
         decoration: InputDecoration(
           labelText: widget.label,
+          hintText: widget.hintText,
+          hintStyle: const TextStyle(
+            fontFamily: AppTextStyles.fontFamily,
+            fontSize: 14,
+            color: AppColors.textMuted,
+          ),
           labelStyle: TextStyle(
             fontFamily: AppTextStyles.fontFamily,
             fontSize: 14,
             color: _isFocused ? AppColors.accent : AppColors.textSecondary,
           ),
           floatingLabelBehavior: FloatingLabelBehavior.auto,
-          prefixIcon: Icon(
-            widget.icon,
-            size: 20,
-            color: _isFocused ? AppColors.accent : AppColors.textSecondary,
-          ),
+          prefixIcon: widget.effectiveIcon != null
+              ? Icon(
+                  widget.effectiveIcon,
+                  size: 20,
+                  color: _isFocused ? AppColors.accent : AppColors.textSecondary,
+                )
+              : null,
           suffixIcon: widget.obscureText
               ? IconButton(
                   splashRadius: 20,
