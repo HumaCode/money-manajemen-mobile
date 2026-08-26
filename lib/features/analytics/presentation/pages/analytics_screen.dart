@@ -17,6 +17,7 @@ import 'package:money_manajemen/core/utils/formatters.dart';
 import 'package:money_manajemen/features/dashboard/presentation/pages/dashboard_screen.dart';
 import 'package:money_manajemen/features/transactions/presentation/pages/transactions_screen.dart';
 import 'package:money_manajemen/features/profile/presentation/pages/profile_screen.dart';
+import 'package:money_manajemen/core/widgets/export_bottom_sheet.dart';
 
 import '../widgets/category_progress_row.dart';
 import '../widgets/analytics_stat_card.dart';
@@ -52,6 +53,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   List<CategorySpendModel> _categorySpends = [];
   List<Map<String, dynamic>> _monthlyData = [];
   List<double> _dailySpending = [];
+  List<TransactionModel> _allLocalTransactions = [];
 
   // Budget & Saving analytics state
   List<BudgetModel> _budgetsList = [];
@@ -202,6 +204,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   Future<void> _calculateFromLocalTransactions() async {
     try {
       final localTx = await DatabaseHelper.instance.getTransactions();
+      _allLocalTransactions = localTx;
 
       // Calculate 6 months dynamic bar data
       final now = DateTime.now();
@@ -484,20 +487,58 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
       opacity: _fadeFor(0.0, 0.35),
       child: SlideTransition(
         position: _slideFor(0.0, 0.35),
-        child: const Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Text(
-              'Analitik',
-              style: TextStyle(
-                fontFamily: AppTextStyles.fontFamily,
-                fontSize: 22,
-                fontWeight: FontWeight.w700,
-                color: AppColors.textPrimary,
+            const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Analitik',
+                  style: TextStyle(
+                    fontFamily: AppTextStyles.fontFamily,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text('Pantau performa keuanganmu', style: AppTextStyles.tagline),
+              ],
+            ),
+            GestureDetector(
+              onTap: () {
+                ExportBottomSheet.show(
+                  context,
+                  transactions: _allLocalTransactions,
+                  periodName: _activePeriod,
+                );
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.accent.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(AppRadius.pill),
+                  border: Border.all(color: AppColors.accent.withValues(alpha: 0.4)),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.ios_share_rounded, size: 16, color: AppColors.accent),
+                    SizedBox(width: 6),
+                    Text(
+                      'Ekspor',
+                      style: TextStyle(
+                        fontFamily: AppTextStyles.fontFamily,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.accent,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-            SizedBox(height: 4),
-            Text('Pantau performa keuanganmu', style: AppTextStyles.tagline),
           ],
         ),
       ),

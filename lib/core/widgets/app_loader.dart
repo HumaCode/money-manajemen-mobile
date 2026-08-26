@@ -5,11 +5,15 @@ import 'package:money_manajemen/app/theme/app_theme.dart';
 class AppLoader extends StatefulWidget {
   final String message;
   final double size;
+  final IconData? icon;
+  final Color? iconColor;
 
   const AppLoader({
     super.key,
     this.message = 'Memuat data...',
     this.size = 70.0,
+    this.icon,
+    this.iconColor,
   });
 
   @override
@@ -127,10 +131,10 @@ class _AppLoaderState extends State<AppLoader> with TickerProviderStateMixin {
                         ),
                       ],
                     ),
-                    child: const Icon(
-                      Icons.show_chart_rounded,
-                      color: AppColors.primary,
-                      size: 24,
+                    child: Icon(
+                      widget.icon ?? Icons.show_chart_rounded,
+                      color: widget.iconColor ?? AppColors.primary,
+                      size: widget.size * 0.35,
                     ),
                   ),
                 ),

@@ -73,6 +73,11 @@ String formatDateFull(DateTime date) {
   return '$dayName, ${date.day} $monthName ${date.year}';
 }
 
+String formatDate(DateTime date) {
+  final monthName = _monthsIndo[date.month - 1];
+  return '${date.day} $monthName ${date.year}';
+}
+
 class ThousandsSeparatorInputFormatter extends TextInputFormatter {
   static String formatNumberWithDots(String str) {
     final cleanText = str.replaceAll(RegExp(r'[^\d]'), '');
