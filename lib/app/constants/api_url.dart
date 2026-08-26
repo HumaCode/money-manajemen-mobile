@@ -1,5 +1,5 @@
 class ApiUrl {
-  static const String baseUrl = 'http://192.168.1.6:8001/api/v1';
+  static const String baseUrl = 'https://cuan.humacode.my.id/api/v1';
   static const String appKey = 'humacode2026';
 
   // Auth
