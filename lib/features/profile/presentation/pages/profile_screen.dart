@@ -17,6 +17,7 @@ import 'package:money_manajemen/data/datasources/auth_remote_data_source.dart';
 import 'package:money_manajemen/data/models/user_model.dart';
 import 'package:money_manajemen/features/profile/presentation/widgets/edit_profile_sheet.dart';
 import 'package:money_manajemen/features/profile/presentation/widgets/change_password_sheet.dart';
+import 'package:money_manajemen/features/profile/presentation/widgets/two_factor_security_sheet.dart';
 import 'package:money_manajemen/features/profile/presentation/pages/help_screen.dart';
 import 'package:money_manajemen/features/profile/presentation/pages/privacy_policy_screen.dart';
 import 'package:money_manajemen/features/profile/presentation/pages/about_screen.dart';
@@ -553,6 +554,14 @@ class _ProfileScreenState extends State<ProfileScreen>
                   color: AppColors.purple,
                   onTap: () {
                     ChangePasswordSheet.show(context);
+                  },
+                ),
+                _MenuTile(
+                  icon: Icons.shield_outlined,
+                  label: 'Keamanan & 2FA',
+                  color: AppColors.success,
+                  onTap: () {
+                    TwoFactorSecuritySheet.show(context);
                   },
                 ),
                 _MenuTile(
