@@ -1,5 +1,5 @@
 class ApiUrl {
-  static const String baseUrl = 'http://192.168.1.3:8001/api/v1';
+  static const String baseUrl = 'http://192.168.1.6:8001/api/v1';
   static const String appKey = 'humacode2026';
 
   // Auth
@@ -17,10 +17,12 @@ class ApiUrl {
   static const String twoFactorVerifyOtp = '$baseUrl/auth/2fa/verify-otp';
   static const String twoFactorDisable = '$baseUrl/auth/2fa/disable';
 
-  // Dashboard Summary
+  // Analytics
   static const String walletSummary = '$baseUrl/wallet-summary';
   static const String topExpenses = '$baseUrl/top-expenses';
   static const String recentTransactions = '$baseUrl/recent-transactions';
+  static const String budgetAnalytics = '$baseUrl/analytics/budgets';
+  static const String savingAnalytics = '$baseUrl/analytics/savings';
 
   // Transactions
   static const String transactions = '$baseUrl/transactions';
@@ -36,13 +38,16 @@ class ApiUrl {
   static String savingGoalDetail(dynamic id) => '$baseUrl/saving-goals/$id';
   static String savingGoalAddSaving(dynamic id) =>
       '$baseUrl/saving-goals/$id/add-saving';
-  static String savingGoalContributionDetail(dynamic goalId, dynamic contributionId) =>
-      '$baseUrl/saving-goals/$goalId/contributions/$contributionId';
+  static String savingGoalContributionDetail(
+    dynamic goalId,
+    dynamic contributionId,
+  ) => '$baseUrl/saving-goals/$goalId/contributions/$contributionId';
 
   // Budgets
   static const String budgets = '$baseUrl/budgets';
   static const String budgetPeriods = '$baseUrl/budget-periods';
   static String budgetDetail(dynamic id) => '$baseUrl/budgets/$id';
-  static String budgetAddExpense(dynamic id) => '$baseUrl/budgets/$id/add-expense';
+  static String budgetAddExpense(dynamic id) =>
+      '$baseUrl/budgets/$id/add-expense';
   static String budgetExpenses(dynamic id) => '$baseUrl/budgets/$id/expenses';
 }

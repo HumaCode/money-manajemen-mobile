@@ -9,6 +9,8 @@ abstract class AnalyticsRemoteDataSource {
   Future<WalletSummaryModel> getWalletSummary({String? period});
   Future<List<TopExpenseItemModel>> getTopExpenses({String? period});
   Future<List<DataTransaksi>> getRecentTransactions();
+  Future<Map<String, dynamic>> getBudgetAnalytics();
+  Future<Map<String, dynamic>> getSavingAnalytics();
 }
 
 class AnalyticsRemoteDataSourceImpl implements AnalyticsRemoteDataSource {
@@ -78,5 +80,33 @@ class AnalyticsRemoteDataSourceImpl implements AnalyticsRemoteDataSource {
     } else {
       throw Exception(responseJson['message'] ?? 'Gagal mengambil transaksi terbaru');
     }
+  }
+
+  @override
+  Future<Map<String, dynamic>> getBudgetAnalytics() async {
+    try {
+      final headers = await _getHeaders();
+      final uri = Uri.parse(ApiUrl.budgetAnalytics);
+      final response = await client.get(uri, headers: headers).timeout(const Duration(seconds: 10));
+      final responseJson = jsonDecode(response.body);
+      if (response.statusCode == 200 && (responseJson['success'] == true || responseJson['status'] == 'success')) {
+        return responseJson['data'] ?? {};
+      }
+    } catch (_) {}
+    return {};
+  }
+
+  @override
+  Future<Map<String, dynamic>> getSavingAnalytics() async {
+    try {
+      final headers = await _getHeaders();
+      final uri = Uri.parse(ApiUrl.savingAnalytics);
+      final response = await client.get(uri, headers: headers).timeout(const Duration(seconds: 10));
+      final responseJson = jsonDecode(response.body);
+      if (response.statusCode == 200 && (responseJson['success'] == true || responseJson['status'] == 'success')) {
+        return responseJson['data'] ?? {};
+      }
+    } catch (_) {}
+    return {};
   }
 }
