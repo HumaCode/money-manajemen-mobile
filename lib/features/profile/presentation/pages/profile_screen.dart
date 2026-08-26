@@ -15,7 +15,7 @@ import 'package:money_manajemen/data/datasources/auth_local_data_source.dart';
 import 'package:money_manajemen/data/datasources/auth_remote_data_source.dart';
 import 'package:money_manajemen/data/models/user_model.dart';
 import 'package:money_manajemen/features/profile/presentation/widgets/edit_profile_sheet.dart';
-import 'package:money_manajemen/features/profile/presentation/widgets/two_factor_security_sheet.dart';
+import 'package:money_manajemen/features/profile/presentation/widgets/change_password_sheet.dart';
 import 'package:money_manajemen/features/profile/presentation/pages/help_screen.dart';
 import 'package:money_manajemen/features/profile/presentation/pages/privacy_policy_screen.dart';
 import 'package:money_manajemen/features/profile/presentation/pages/about_screen.dart';
@@ -36,6 +36,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   UserDetail? _user;
   int _accountsCount = 0;
   int _transactionsCount = 0;
+  int _budgetsCount = 0;
   String _selectedCurrencyCode = 'IDR';
 
   Animation<double> _fadeFor(double start, double end) => CurvedAnimation(
@@ -82,8 +83,49 @@ class _ProfileScreenState extends State<ProfileScreen>
     }
 
     try {
+      final token = await AuthLocalDataSourceImpl().getToken();
+      final headers = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Authorization': 'Bearer ${token ?? ''}',
+        'X-App-Key': ApiUrl.appKey,
+        'x-api-key': ApiUrl.appKey,
+      };
+
       final remoteDS = AuthRemoteDataSourceImpl(client: http.Client());
       final freshUser = await remoteDS.getProfile();
+
+      // Fetch real counts from API
+      try {
+        final txRes = await http.get(Uri.parse(ApiUrl.transactions), headers: headers);
+        if (txRes.statusCode == 200) {
+          final txBody = jsonDecode(txRes.body);
+          if (txBody['data'] is List) {
+            _transactionsCount = (txBody['data'] as List).length;
+          }
+        }
+      } catch (_) {}
+
+      try {
+        final accRes = await http.get(Uri.parse(ApiUrl.accounts), headers: headers);
+        if (accRes.statusCode == 200) {
+          final accBody = jsonDecode(accRes.body);
+          if (accBody['data'] is List) {
+            _accountsCount = (accBody['data'] as List).length;
+          }
+        }
+      } catch (_) {}
+
+      try {
+        final bgRes = await http.get(Uri.parse(ApiUrl.budgets), headers: headers);
+        if (bgRes.statusCode == 200) {
+          final bgBody = jsonDecode(bgRes.body);
+          if (bgBody['data'] is List) {
+            _budgetsCount = (bgBody['data'] as List).length;
+          }
+        }
+      } catch (_) {}
+
       if (mounted) {
         setState(() {
           _user = freshUser;
@@ -491,7 +533,7 @@ class _ProfileScreenState extends State<ProfileScreen>
             _buildStatsRow(),
             const SizedBox(height: 24),
             _buildMenuGroup(
-              title: 'Akun',
+              title: 'Keamanan & Akun',
               start: 0.25,
               end: 0.6,
               items: [
@@ -503,16 +545,10 @@ class _ProfileScreenState extends State<ProfileScreen>
                 ),
                 _MenuTile(
                   icon: Icons.lock_outline_rounded,
-                  label: 'Ubah Password',
+                  label: 'Ubah Password Akun',
                   color: AppColors.purple,
-                  onTap: () {},
-                ),
-                _MenuTile(
-                  icon: Icons.shield_outlined,
-                  label: 'Keamanan & 2FA',
-                  color: AppColors.success,
                   onTap: () {
-                    TwoFactorSecuritySheet.show(context);
+                    ChangePasswordSheet.show(context);
                   },
                 ),
                 _MenuTile(
@@ -802,10 +838,10 @@ class _ProfileScreenState extends State<ProfileScreen>
               ),
             ),
             const SizedBox(width: 10),
-            const Expanded(
+            Expanded(
               child: _StatBox(
                 icon: Icons.pie_chart_outline_rounded,
-                value: '3',
+                value: '$_budgetsCount',
                 label: 'Budget',
                 color: AppColors.accent,
               ),
