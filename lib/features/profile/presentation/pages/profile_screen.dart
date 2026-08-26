@@ -5,6 +5,7 @@ import 'package:money_manajemen/app/constants/api_url.dart';
 import 'package:money_manajemen/app/theme/app_theme.dart';
 import 'package:money_manajemen/core/database/database_helper.dart';
 import 'package:money_manajemen/core/services/biometric_service.dart';
+import 'package:money_manajemen/core/services/language_service.dart';
 import 'package:money_manajemen/core/widgets/dynamic_island_toast.dart';
 import 'package:money_manajemen/core/widgets/app_bottom_nav.dart';
 import 'package:money_manajemen/features/dashboard/presentation/pages/dashboard_screen.dart';
@@ -38,6 +39,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   int _transactionsCount = 0;
   int _budgetsCount = 0;
   String _selectedCurrencyCode = 'IDR';
+  String _selectedLanguageCode = 'id';
 
   Animation<double> _fadeFor(double start, double end) => CurvedAnimation(
     parent: _entrance,
@@ -71,6 +73,7 @@ class _ProfileScreenState extends State<ProfileScreen>
     final localTxs = await DatabaseHelper.instance.getTransactions();
     final bioOn = await BiometricService.isBiometricEnabled();
     final savedCode = await AuthLocalDataSourceImpl().getSelectedCurrencyCode();
+    final savedLang = await LanguageService.getLanguage();
 
     if (mounted) {
       setState(() {
@@ -79,6 +82,7 @@ class _ProfileScreenState extends State<ProfileScreen>
         _transactionsCount = localTxs.length;
         _biometricOn = bioOn;
         _selectedCurrencyCode = savedCode;
+        _selectedLanguageCode = savedLang;
       });
     }
 
@@ -227,9 +231,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                     ),
                   ),
                   const SizedBox(width: 12),
-                  const Text(
-                    'Pilih Mata Uang',
-                    style: TextStyle(
+                  Text(
+                    LanguageService.tr('Pilih Mata Uang', 'Select Currency', _selectedLanguageCode),
+                    style: const TextStyle(
                       fontFamily: AppTextStyles.fontFamily,
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -648,7 +652,7 @@ class _ProfileScreenState extends State<ProfileScreen>
     return FadeTransition(
       opacity: _fadeFor(0.0, 0.3),
       child: const Text(
-        'Profil',
+        'Profil Saya',
         style: TextStyle(
           fontFamily: AppTextStyles.fontFamily,
           fontSize: 22,
